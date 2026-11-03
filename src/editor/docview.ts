@@ -71,11 +71,9 @@ export class DocView {
       if (transaction.docChanged) this.schedule()
     })
     if (mode === 'edit') {
-      loadUsedFonts(this.root).finally(() => {
-        if (this.destroyed) return
-        document.fonts.addEventListener('loadingdone', this.onFonts)
-        this.schedule(0)
-      })
+      document.fonts.addEventListener('loadingdone', this.onFonts)
+      this.schedule(0)
+      loadUsedFonts(this.root).finally(() => { if (!this.destroyed) this.schedule(0) })
     }
   }
 

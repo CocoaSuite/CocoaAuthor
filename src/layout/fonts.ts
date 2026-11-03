@@ -18,7 +18,7 @@ export function injectFonts() {
   for (const f of FONTS) {
     const m = FONT_METRICS[f.key]
     for (const w of WEIGHTS) for (const it of [false, true]) {
-      css += `@font-face{font-family:"${f.name}";src:url("${fontURL(fontFile(f.key, w, it))}") format("truetype");font-weight:${w};font-style:${it ? 'italic' : 'normal'};font-display:block;ascent-override:${(m.asc * 100).toFixed(3)}%;descent-override:${(m.desc * 100).toFixed(3)}%;line-gap-override:0%}\n`
+      css += `@font-face{font-family:"${f.name}";src:url("${fontURL(fontFile(f.key, w, it).replace('.ttf', '.woff2'))}") format("woff2");font-weight:${w};font-style:${it ? 'italic' : 'normal'};font-display:swap;ascent-override:${(m.asc * 100).toFixed(3)}%;descent-override:${(m.desc * 100).toFixed(3)}%;line-gap-override:0%}\n`
     }
   }
   const s = document.createElement('style')
