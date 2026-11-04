@@ -1,5 +1,7 @@
 import { store, native, openFile, unpackDoc, saveFile, safeName, packDoc } from '../storage/store'
 import { newDoc } from '../model/doc'
+import { themeStyles } from '../model/themes'
+import { thumbFor, thumbForDoc } from './thumbs'
 import type { DocSummary, DocStatus } from '../model/types'
 import { TEMPLATES, CATEGORIES, templateContent, type Template } from '../templates'
 import { h, relTime } from '../util'
@@ -10,7 +12,7 @@ import { deleteDocConfirmed } from './workspace'
 import { exportPDF, exportDOCX } from './docdialogs'
 
 export async function createFromTemplate(t: Template | null) {
-  const d = t ? newDoc(t.name, templateContent(t), { template: t.id }) : newDoc('Untitled document')
+  const d = t ? newDoc(t.name, templateContent(t), { template: t.id, styles: themeStyles(t.category) }) : newDoc('Untitled document')
   await store.save(d)
   go('/doc/' + d.meta.id)
 }
@@ -113,10 +115,11 @@ export async function renderLibrary(app: HTMLElement, view: 'recent' | 'all' | '
   }
 
   const docCard = (d: DocSummary) => {
-    const tpl = TEMPLATES.find(t => t.id === d.template)
-    const more = h('button', { class: 'more ic', title: 'More', 'aria-label': 'More actions', onclick: (e: MouseEvent) => { e.stopPropagation(); menu(d, e.clientX, e.clientY) } }, icon('more'))
+        const more = h('button', { class: 'more ic', title: 'More', 'aria-label': 'More actions', onclick: (e: MouseEvent) => { e.stopPropagation(); menu(d, e.clientX, e.clientY) } }, icon('more'))
+    const th = h('div', { class: 'thumb doc' }, h('b', {}, d.title), h('p', {}, d.snippet || ''))
+    thumbForDoc(d.id, th)
     const c = h('div', { class: 'card', role: 'button', tabindex: '0', onclick: () => go('/doc/' + d.id), oncontextmenu: (e: MouseEvent) => { e.preventDefault(); menu(d, e.clientX, e.clientY) } },
-      h('div', { class: 'thumb' }, h('b', {}, d.title), h('p', {}, d.snippet || ''), tpl ? h('span', { class: 'tg' }, tpl.category) : ''),
+      th,
       h('div', { class: 'meta' }, h('span', { class: 't', title: d.title }, d.title), h('span', { class: 's' }, h('span', { class: 'chip ' + d.status }, d.status === 'review' ? 'In review' : d.status), relTime(d.modified), '·', `${d.words.toLocaleString()} words`)),
       more)
     c.addEventListener('keydown', e => { if (e.key === 'Enter') go('/doc/' + d.id) })
@@ -158,8 +161,8 @@ export async function renderLibrary(app: HTMLElement, view: 'recent' | 'all' | '
   ])
 
   const tplCard = (t: Template) => h('div', { class: 'card tpl', role: 'button', tabindex: '0', title: t.description, onclick: () => createFromTemplate(t) },
-    h('div', { class: 'thumb' }, h('b', {}, t.name), h('p', {}, t.description), h('span', { class: 'tg' }, t.category)),
-    h('div', { class: 'meta' }, h('span', { class: 't' }, t.name), h('span', { class: 's' }, t.category)))
+    h('div', { class: 'thumb doc' }, thumbFor(t)),
+    h('div', { class: 'meta' }, h('span', { class: 't' }, t.name), h('span', { class: 's d' }, t.description)))
 
   const drawTemplates = () => {
     main.append(h('div', { class: 'lhead' }, h('h1', {}, cat || 'Templates'), h('span', { class: 'mute' }, 'Each template sets up the structure and prompts you to fill it in.')))

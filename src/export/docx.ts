@@ -10,6 +10,7 @@ import { fontBytes, fontFile } from '../layout/fonts'
 import { assets } from '../editor/registry'
 import type { Layout } from '../layout/paginate'
 import { ensureAssets } from './render'
+import { chartSVG } from '../editor/chart'
 import { getSchema } from '@tiptap/core'
 import { extensions } from '../editor/extensions'
 
@@ -28,6 +29,26 @@ function runStyle(t: TextStyleDef) {
 }
 function paraStyle(t: TextStyleDef) {
   return { spacing: { before: tw(t.before), after: tw(t.after), line: Math.round(240 * t.lineHeight) }, alignment: ALIGN[t.align] }
+}
+
+function pfmt(a: any, base: { indent?: any } = {}) {
+  const o: any = {}
+  const left = a.left != null ? a.left : a.indent ? a.indent * 18 : null
+  if (left != null || a.right != null || a.firstLine != null) {
+    o.indent = { ...(base.indent || {}) }
+    if (left != null) o.indent.left = tw(left)
+    if (a.right != null) o.indent.right = tw(a.right)
+    if (a.firstLine != null) { if (a.firstLine >= 0) o.indent.firstLine = tw(a.firstLine); else o.indent.hanging = tw(-a.firstLine) }
+  }
+  if (a.before != null || a.after != null || a.lh != null) {
+    o.spacing = {}
+    if (a.before != null) o.spacing.before = tw(a.before)
+    if (a.after != null) o.spacing.after = tw(a.after)
+    if (a.lh != null) o.spacing.line = Math.round(240 * a.lh)
+  }
+  if (a.keepNext) o.keepNext = true
+  if (a.breakBefore) o.pageBreakBefore = true
+  return o
 }
 
 export async function buildDOCX(doc: CADocument, layout: Layout | null, opts: { embedFonts: boolean } = { embedFonts: true }): Promise<Blob> {
@@ -147,9 +168,9 @@ export async function buildDOCX(doc: CADocument, layout: Layout | null, opts: { 
         out.push(new Paragraph({
           style, children: kids,
           alignment: a.textAlign ? ALIGN[a.textAlign] : undefined,
-          indent: a.indent ? { left: tw(a.indent * 18) } : undefined,
+          ...pfmt(a),
           numbering: ctx.list ? { reference: ctx.list.ref, level: ctx.list.level, instance: ctx.list.instance } : undefined,
-          keepNext: a.kind === 'title' || a.kind === 'subtitle' || (a.kind === 'caption' && a.label === 'table') ? true : undefined,
+          keepNext: a.keepNext || a.kind === 'title' || a.kind === 'subtitle' || (a.kind === 'caption' && a.label === 'table') ? true : undefined,
           ...(ctx.callout ? calloutProps(ctx.callout) : {})
         }))
       } else if (n.type === 'heading') {
@@ -162,6 +183,7 @@ export async function buildDOCX(doc: CADocument, layout: Layout | null, opts: { 
         out.push(new Paragraph({
           heading: [HeadingLevel.HEADING_1, HeadingLevel.HEADING_2, HeadingLevel.HEADING_3, HeadingLevel.HEADING_4][l - 1],
           alignment: a.textAlign ? ALIGN[a.textAlign] : undefined,
+          ...pfmt(a),
           children: a.id ? [new Bookmark({ id: bm(a.id), children: kids })] : kids
         }))
       } else if (n.type === 'bulletList' || n.type === 'orderedList') {
@@ -176,6 +198,11 @@ export async function buildDOCX(doc: CADocument, layout: Layout | null, opts: { 
       else if (n.type === 'horizontalRule') out.push(new Paragraph({ border: { bottom: { style: BorderStyle.SINGLE, size: 6, color: hex(S.grid), space: 1 } }, spacing: { before: 120, after: 240 } }))
       else if (n.type === 'pageBreak') out.push(new Paragraph({ children: [new PageBreak()] }))
       else if (n.type === 'image') out.push(await imagePara(n, ctx.land))
+      else if (n.type === 'chart') {
+        const { data, type } = await imageData(new Blob([chartSVG(a)], { type: 'image/svg+xml' }), null)
+        const wpx = contentWidthPx(ctx.land) * (a.width || 100) / 100
+        out.push(new Paragraph({ alignment: ALIGN[a.align] || AlignmentType.CENTER, keepNext: true, spacing: { before: 120, after: 80 }, children: [new ImageRun({ type, data, transformation: { width: Math.round(wpx), height: Math.round(wpx * (a.ratio || 0.56)) }, altText: { name: a.title || 'Chart', description: a.title || 'Chart', title: a.title || 'Chart' } } as any)] }))
+      }
       else if (n.type === 'toc') {
         if (a.title) out.push(new Paragraph({ style: 'TOCHeading', children: a.id ? [new Bookmark({ id: bm(a.id), children: [new TextRun(a.title)] })] : [new TextRun(a.title)] }))
         out.push({ __toc: a.levels || 3 })

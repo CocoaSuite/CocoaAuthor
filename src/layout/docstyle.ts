@@ -10,13 +10,13 @@ function run(t: TextStyleDef) {
   return `font-family:${fam(t.font)};font-size:${t.size}px;font-weight:${t.weight};font-style:${t.italic ? 'italic' : 'normal'};color:${t.color};line-height:${t.lineHeight};letter-spacing:${t.tracking}em;text-transform:${t.caps ? 'uppercase' : 'none'}`
 }
 
-export function docCSS(st: StyleSet | null): string {
+export function docCSS(st: StyleSet | null, scope = '.ca-flow'): string {
   const s = { ...defaultStyles(), ...(st || {}) } as StyleSet
   s.text = { ...defaultStyles().text, ...(st?.text || {}) }
   const T = s.text
-  const R = '.ca-flow .ProseMirror'
+  const R = scope + ' .ProseMirror'
   return `
-.ca-flow{--accent:${s.accent};--link:${s.link};--grid:${s.grid};--thead:${s.tableHead};--callout:${s.calloutBg}}
+${scope}{--accent:${s.accent};--link:${s.link};--grid:${s.grid};--thead:${s.tableHead};--callout:${s.calloutBg}}
 ${R} .k-body{${decl(T.body)}}
 ${R} .k-title{${decl(T.title)}}
 ${R} .k-subtitle{${decl(T.subtitle)}}
@@ -34,8 +34,8 @@ ${R} .ca-toce{${run(T.body)}}
 ${R} .ca-toce.l1{font-weight:600}
 ${R} .ca-ent{${decl(T.h2)}}
 ${R} .ca-en{${run(T.footnote)};padding-bottom:${T.footnote.after}px}
-.ca-flow .ca-fnb{${run(T.footnote)};padding-bottom:${T.footnote.after}px}
-.ca-flow .ca-hf{${run(T.header)}}
+${scope} .ca-fnb{${run(T.footnote)};padding-bottom:${T.footnote.after}px}
+${scope} .ca-hf{${run(T.header)}}
 ${R} .ca-callout p.k-body{${decl(T.body)}}
 ${R} a,${R} .ca-xref{color:var(--link)}
 `

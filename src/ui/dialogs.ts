@@ -50,13 +50,18 @@ export function promptBox(title: string, label: string, value = '', ok = 'Save')
   return m.done.then(v => (v == null ? null : String(v)))
 }
 
-export function ctxMenu(x: number, y: number, items: ({ label: string; icon?: Node; danger?: boolean; run: () => void } | 'sep')[]) {
+export type CtxItem = { label: string; icon?: Node; danger?: boolean; disabled?: boolean; run: () => void } | 'sep' | null | false
+export function ctxMenu(x: number, y: number, raw: CtxItem[]) {
   document.querySelectorAll('.ctx').forEach(e => e.remove())
+  const items = raw.filter(Boolean).filter((it, i, a) => it !== 'sep' || (i > 0 && a[i - 1] !== 'sep' && i < a.length - 1)) as Exclude<CtxItem, null | false>[]
   const m = h('div', { class: 'ctx', role: 'menu' })
+  m.addEventListener('contextmenu', e => e.preventDefault())
   for (const it of items) {
     if (it === 'sep') { m.append(h('hr')); continue }
-    m.append(h('button', { role: 'menuitem', class: it.danger ? 'danger' : '', onclick: () => { m.remove(); it.run() } }, it.icon || '', it.label))
+    m.append(h('button', { role: 'menuitem', class: it.danger ? 'danger' : '', disabled: !!it.disabled, onmousedown: (e: Event) => e.preventDefault(), onclick: () => { m.remove(); it.run() } }, it.label))
   }
+  const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') { m.remove(); document.removeEventListener('keydown', esc) } }
+  document.addEventListener('keydown', esc)
   document.body.append(m)
   const r = m.getBoundingClientRect()
   m.style.left = Math.min(x, innerWidth - r.width - 8) + 'px'

@@ -219,3 +219,38 @@ aside{background:var(--panel);overflow:auto;min-height:0;min-width:0}
   .pv .pvside{grid-template-columns:0 minmax(0,1fr)}
 }
 .lempty button{color:var(--fg)}
+.split{display:inline-flex;align-items:center;flex:none}
+.split .cbtn{padding-right:4px}
+.cmore{padding:5px 2px}
+.cmore svg.i{width:12px;height:12px}
+.swatches{padding:10px;min-width:0;width:222px}
+.swg{display:grid;grid-template-columns:repeat(6,28px);gap:6px}
+.swatches .swg button.sw{width:28px;height:28px;padding:0;border-radius:5px;border:1px solid rgba(255,255,255,.12)}
+.swatches .swg button.sw.on{outline:2px solid var(--sel);outline-offset:1px}
+.swrow{display:flex;align-items:center;justify-content:space-between;margin-top:10px;gap:8px}
+.swatches .swrow button{padding:4px 10px;border:1px solid var(--line);background:var(--panel2)}
+.ctx{min-width:240px;border-radius:8px;padding:6px;background:#232323}
+.ctx>button{padding:9px 14px;font-size:14px;border-radius:5px;gap:10px}
+.ctx>button:hover:not(:disabled){background:#363636}
+.ctx>button:disabled{opacity:.4}
+.ctx hr{margin:5px 8px}
+.csvprev{max-height:280px;overflow:auto;border:1px solid var(--line);border-radius:6px;padding:6px;background:var(--bg)}
+.csvprev table{border-collapse:collapse;font-size:12px;width:100%}
+.csvprev td,.csvprev th{border:1px solid var(--line);padding:3px 6px;text-align:left;white-space:nowrap;max-width:160px;overflow:hidden;text-overflow:ellipsis}
+.csvprev th{background:var(--panel2)}
+.card .thumb.doc{padding:0;aspect-ratio:210/272;background:#fff;border-color:#2a2a2a}
+.card .thumb.doc>b,.card .thumb.doc>p{margin:16px 15px 0}
+.tpw{width:100%;height:100%;overflow:hidden;pointer-events:none}
+.tpv{width:595px;min-height:842px;padding:58px 62px;background:#fff;box-sizing:border-box}
+.tpv .ProseMirror{display:flex;flex-direction:column;align-items:stretch}
+.tpv .ca-sec{width:auto;margin:0}
+.tpv li::before{content:'•';position:absolute;left:3px;top:0;font:inherit;line-height:inherit}
+.tpv ol{counter-reset:i}
+.tpv ol>li{counter-increment:i}
+.tpv ol>li::before{content:counter(i) '.';left:0}
+.tpv img[src=""],.tpv img:not([src]){display:none}
+.tpv .ca-toc,.tpv .ca-pb{display:none}
+.tpv figure{margin:6px 0}
+.tpv figure img{width:100%;display:block}
+.card .meta .s.d{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.card.new .thumb{aspect-ratio:210/272}

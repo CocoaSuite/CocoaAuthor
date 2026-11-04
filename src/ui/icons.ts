@@ -65,7 +65,8 @@ const P: Record<string, string> = {
   levelup: 'M15 18l-6-6 6-6',
   leveldown: 'M9 18l6-6-6-6',
   grip: 'M9 6h.01M15 6h.01M9 12h.01M15 12h.01M9 18h.01M15 18h.01',
-  caption: 'M4 4h16v10H4zM4 18h10'
+  caption: 'M4 4h16v10H4zM4 18h10',
+  chart: 'M4 20h16M7 16v-5M12 16V6M17 16v-8'
 }
 
 export function icon(name: string, title?: string): SVGSVGElement {

@@ -21,7 +21,7 @@ type B = { kind: 'w'; pos: number } | { kind: 'i'; blockPos: number; resolve: ()
 
 interface Unit {
   top: number; bottom: number; brk: B; sec: number
-  keepNext?: boolean; force?: boolean; fn?: string[]
+  keepNext?: boolean; force?: boolean; forceBefore?: boolean; fn?: string[]
   blk?: number; li?: number; ln?: number
 }
 
@@ -155,6 +155,8 @@ function onePass(view: EditorView, root: HTMLElement, opts: { scale: number; gap
       for (const x of mine) if (x.top <= t + 1) u = x
       ;(u.fn ||= []).push(c.attrs.id)
     })
+    if (n.attrs.breakBefore) mine[0].forceBefore = true
+    if (n.attrs.keepNext) out[out.length - 1].keepNext = true
     if (n.type.name === 'heading' || n.attrs.kind === 'title' || n.attrs.kind === 'subtitle' || (n.attrs.kind === 'caption' && n.attrs.label === 'table')) out[out.length - 1].keepNext = true
   }
 
@@ -197,7 +199,7 @@ function onePass(view: EditorView, root: HTMLElement, opts: { scale: number; gap
     const r = R(el)
     if (ty === 'pageBreak') { out.push({ top: r.top, bottom: r.top, sec, brk: { kind: 'w', pos }, force: true }); return }
     const u: Unit = { top: r.top, bottom: r.bottom, sec, brk: { kind: 'w', pos } }
-    if (ty === 'image' && next?.type.name === 'paragraph' && next.attrs.kind === 'caption') u.keepNext = true
+    if ((ty === 'image' || ty === 'chart') && next?.type.name === 'paragraph' && next.attrs.kind === 'caption') u.keepNext = true
     out.push(u)
   }
 
@@ -300,9 +302,10 @@ function onePass(view: EditorView, root: HTMLElement, opts: { scale: number; gap
         const bot = u.bottom + shift
         const add = (u.fn || []).filter(id => !p.fn.includes(id))
         const limit = p.cBot - fa([...p.fn, ...add])
-        if (force || (bot > limit + 0.01 && i > start)) {
+        const hard = force || !!u.forceBefore
+        if (hard || (bot > limit + 0.01 && i > start)) {
           let j = i
-          if (!force) {
+          if (!hard) {
             while (j - 1 > start && list[j - 1].keepNext) j--
             const uj = list[j]
             if (uj.li === 1 && (uj.ln || 0) >= 2 && j - 1 > start) j--

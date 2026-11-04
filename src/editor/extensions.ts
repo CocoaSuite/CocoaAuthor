@@ -12,6 +12,7 @@ import { Plugin, PluginKey, TextSelection } from '@tiptap/pm/state'
 import { assets } from './registry'
 import { uid, esc } from '../util'
 import { layoutPlugin } from '../layout/plugin'
+import { chartURL, type ChartData } from './chart'
 
 const idAttr = {
   default: null,
@@ -134,6 +135,46 @@ export const Img = Node.create({
         update(n) { if (n.type.name !== 'image') return false; apply(n); return true },
         ignoreMutation: () => true
       }
+    }
+  }
+})
+
+export const Chart = Node.create({
+  name: 'chart',
+  group: 'block',
+  atom: true,
+  draggable: true,
+  addAttributes() {
+    const j = (k: string, d: any) => ({ default: d, parseHTML: (el: HTMLElement) => { try { return JSON.parse(el.dataset[k] || '') } catch { return d } }, renderHTML: (a: any) => ({ ['data-' + k]: JSON.stringify(a[k]) }) })
+    return {
+      kind: { default: 'column' }, title: { default: '' }, legend: { default: true }, ratio: { default: 0.56 },
+      width: { default: 100 }, align: { default: 'center' },
+      labels: j('labels', []), series: j('series', [])
+    }
+  },
+  parseHTML: () => [{ tag: 'figure.ca-chart' }],
+  renderHTML: ({ node }) => ['figure', { class: 'ca-chart', 'data-labels': JSON.stringify(node.attrs.labels), 'data-series': JSON.stringify(node.attrs.series), 'data-kind': node.attrs.kind }, ['img', { src: chartURL(node.attrs as ChartData), alt: node.attrs.title || 'Chart' }]],
+  addNodeView() {
+    return ({ node }) => {
+      const dom = document.createElement('figure')
+      dom.className = 'ca-img ca-chartv'
+      const box = document.createElement('div')
+      box.className = 'ca-imgb'
+      const img = document.createElement('img')
+      img.draggable = false
+      box.append(img)
+      dom.append(box)
+      let last = ''
+      const apply = (n: typeof node) => {
+        const a = n.attrs
+        dom.dataset.align = a.align
+        box.style.width = a.width + '%'
+        box.style.aspectRatio = `1 / ${a.ratio || 0.56}`
+        const key = JSON.stringify([a.kind, a.title, a.legend, a.ratio, a.labels, a.series])
+        if (key !== last) { last = key; img.src = chartURL(a as ChartData); img.alt = a.title || 'Chart' }
+      }
+      apply(node)
+      return { dom, update(n) { if (n.type.name !== 'chart') return false; apply(n); return true }, ignoreMutation: () => true }
     }
   }
 })
@@ -329,6 +370,37 @@ export const Ids = Extension.create({
   }
 })
 
+const num = (k: string, css: (v: number) => string) => ({
+  default: null,
+  parseHTML: (el: HTMLElement) => { const v = el.getAttribute('data-' + k.toLowerCase()); return v != null && v !== '' ? +v : null },
+  renderHTML: (a: any) => (a[k] == null || isNaN(a[k]) ? {} : { ['data-' + k.toLowerCase()]: a[k], style: css(a[k]) })
+})
+const flag = (k: string) => ({
+  default: false,
+  keepOnSplit: false,
+  parseHTML: (el: HTMLElement) => el.hasAttribute('data-' + k.toLowerCase()),
+  renderHTML: (a: any) => (a[k] ? { ['data-' + k.toLowerCase()]: '' } : {})
+})
+
+export const ParaFormat = Extension.create({
+  name: 'caParaFormat',
+  addGlobalAttributes() {
+    return [{
+      types: ['paragraph', 'heading'],
+      attributes: {
+        left: num('left', v => `margin-left:${v}px`),
+        right: num('right', v => `margin-right:${v}px`),
+        firstLine: num('firstLine', v => `text-indent:${v}px`),
+        before: num('before', v => `margin-top:${v}px`),
+        after: num('after', v => `margin-bottom:${v}px`),
+        lh: num('lh', v => `line-height:${v}`),
+        keepNext: flag('keepNext'),
+        breakBefore: flag('breakBefore')
+      }
+    }]
+  }
+})
+
 export const LayoutExt = Extension.create({
   name: 'caLayout',
   addProseMirrorPlugins() { return [layoutPlugin()] }
@@ -341,12 +413,12 @@ export function extensions() {
       link: false, trailingNode: false,
       bulletList: { keepMarks: true }, orderedList: { keepMarks: true }
     } as any),
-    CADoc, Section, Para, Head, Callout, PageBreak, Img, Toc, Footnote, Xref, Bookmark, Hint,
+    CADoc, Section, Para, Head, Callout, PageBreak, Img, Chart, Toc, Footnote, Xref, Bookmark, Hint,
     Link.configure({ openOnClick: false, autolink: true, linkOnPaste: true, protocols: ['mailto', 'tel'], HTMLAttributes: { target: null, rel: null, class: null } }),
     TextStyle, Color, FontFamily, FontSize,
     Highlight.configure({ multicolor: true }),
     TextAlign.configure({ types: ['heading', 'paragraph'] }),
     Table.configure({ resizable: false, cellMinWidth: 30 }), TableRow, HeadCell, Cell,
-    Ids, LayoutExt
+    ParaFormat, Ids, LayoutExt
   ]
 }

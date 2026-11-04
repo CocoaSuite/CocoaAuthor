@@ -283,6 +283,14 @@ export async function preview(doc: CADocument, ed: Editor | null) {
     pg.textContent = `Page ${L.pages[i]?.label ?? 1} · ${i + 1} of ${L.pages.length}`
   }
   desk.addEventListener('scroll', upd)
+  desk.addEventListener('wheel', e => {
+    if (!(e.ctrlKey || e.metaKey)) return
+    e.preventDefault()
+    const r = desk.getBoundingClientRect()
+    const fy = e.clientY - r.top + desk.scrollTop, z0 = zoom
+    setZoom(zoom * Math.exp(-e.deltaY * (e.deltaMode === 1 ? 0.05 : 0.0018)))
+    desk.scrollTop = fy * (zoom / z0) - (e.clientY - r.top)
+  }, { passive: false })
   upd()
   root.addEventListener('click', e => {
     const a = (e.target as HTMLElement).closest('a') as HTMLAnchorElement | null

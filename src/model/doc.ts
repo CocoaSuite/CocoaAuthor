@@ -5,6 +5,7 @@ export function newDoc(title = 'Untitled document', content?: any, opts: { templ
   const now = Date.now()
   const settings = { ...defaultSettings(), ...(opts.settings || {}) }
   const styles = { ...defaultStyles(), ...(opts.styles || {}) }
+  if (opts.styles?.text) styles.text = { ...defaultStyles().text, ...opts.styles.text }
   return {
     format: 'cocoaauthor',
     version: 1,

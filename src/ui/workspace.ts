@@ -12,6 +12,9 @@ import { inspectorPanel } from './inspector'
 import { currentBlockStyle, setBlockStyle, insertImage, addImageAsset, insertSectionBreak, settingsOf, setSettings, type BlockStyle } from './commands'
 import { linkDialog, xrefDialog, tableDialog, noteDialog, bookmarkDialog, exportPDF, exportDOCX, exportFile, preview } from './docdialogs'
 import { metaLite, ensureAssets } from '../export/render'
+import { attachContextMenu } from './contextmenu'
+import { csvDialog } from './csv'
+import { replaceImage } from './commands'
 import { go } from '../router'
 
 export interface WS { dispose(): Promise<void> }
@@ -88,6 +91,7 @@ export async function openWorkspace(app: HTMLElement, id: string): Promise<WS | 
   const ins = {
     image: () => insertImage(ed, doc),
     table: () => tableDialog(ed),
+    csv: () => csvDialog(ed),
     link: () => linkDialog(ed, dv),
     callout: () => ed.chain().focus().wrapIn('callout', { tone: 'note' }).run(),
     quote: () => ed.chain().focus().toggleBlockquote().run(),
@@ -103,6 +107,7 @@ export async function openWorkspace(app: HTMLElement, id: string): Promise<WS | 
   const insertItems = () => [
     { label: 'Image…', icon: icon('image'), run: ins.image },
     { label: 'Table…', icon: icon('table'), run: ins.table },
+    { label: 'Table or chart from CSV…', icon: icon('chart'), run: ins.csv },
     { label: 'Link…', icon: icon('link'), run: ins.link },
     'sep' as const,
     { label: 'Callout box', icon: icon('callout'), run: ins.callout },
@@ -186,15 +191,32 @@ export async function openWorkspace(app: HTMLElement, id: string): Promise<WS | 
     return b
   }
   const actives: [HTMLElement, () => boolean][] = []
-  const colorBtn = (name: string, title: string, get: () => string, set: (v: string) => void) => {
-    const inp = h('input', { type: 'color', 'aria-label': title }) as HTMLInputElement
-    const bar = h('span', { class: 'bar' })
-    inp.addEventListener('input', () => { set(inp.value); bar.style.background = inp.value })
-    const b = h('button', { class: 'ic cbtn', title, onmousedown: () => { inp.value = get() } }, icon(name), bar, inp)
-    return { b, bar, get }
+  const colorBtn = (name: string, title: string, key: string, def: string, palette: string[], apply: (v: string | null) => void, active: () => boolean) => {
+    let cur = localStorage.getItem(key) || def
+    const bar = h('span', { class: 'bar', style: { background: cur } })
+    const main = h('button', { class: 'ic cbtn', title, 'aria-label': title, onmousedown: (e: Event) => e.preventDefault(), onclick: () => apply(active() ? null : cur) }, icon(name), bar)
+    const pick = (v: string) => { cur = v; localStorage.setItem(key, v); bar.style.background = v; apply(v) }
+    const more = h('button', { class: 'ic cmore', title: title + ' options', 'aria-label': title + ' options', onmousedown: (e: Event) => e.preventDefault(), onclick: () => {
+      const r = more.getBoundingClientRect()
+      document.querySelectorAll('.ctx').forEach(e => e.remove())
+      const pop = h('div', { class: 'ctx swatches', role: 'dialog', 'aria-label': title })
+      const grid = h('div', { class: 'swg' })
+      for (const c of palette) grid.append(h('button', { class: 'sw' + (c === cur ? ' on' : ''), title: c, style: { background: c }, onmousedown: (e: Event) => e.preventDefault(), onclick: () => { pick(c); pop.remove() } }))
+      const custom = h('input', { type: 'color', value: cur }) as HTMLInputElement
+      custom.addEventListener('change', () => { pick(custom.value); pop.remove() })
+      pop.append(grid, h('div', { class: 'swrow' }, h('label', { class: 'chk' }, custom, 'Custom…'), h('button', { onmousedown: (e: Event) => e.preventDefault(), onclick: () => { apply(null); pop.remove() } }, 'None')))
+      document.body.append(pop)
+      pop.style.left = Math.min(r.left - 30, innerWidth - 230) + 'px'
+      pop.style.top = r.bottom + 4 + 'px'
+      const off = (e: Event) => { if (!pop.contains(e.target as Node) && e.target !== more) { pop.remove(); document.removeEventListener('mousedown', off, true) } }
+      setTimeout(() => document.addEventListener('mousedown', off, true))
+    } }, icon('chev'))
+    return { b: h('span', { class: 'split' }, main, more), bar }
   }
-  const tc = colorBtn('palette', 'Text colour', () => ed.getAttributes('textStyle').color || '#1d1d1f', v => ed.chain().setColor(v).run())
-  const hc = colorBtn('highlight', 'Highlight', () => ed.getAttributes('highlight').color || '#fff3a3', v => ed.chain().setHighlight({ color: v }).run())
+  const tc = colorBtn('palette', 'Text colour', 'ca-tcol', '#c0392b', ['#1d1d1f', '#5b6472', '#8b919b', '#c0392b', '#d35400', '#b7950b', '#1e8449', '#117a65', '#1f3a66', '#2f5fb3', '#6c3483', '#a93279'],
+    v => (v ? ed.chain().focus().setColor(v).run() : ed.chain().focus().unsetColor().run()), () => false)
+  const hc = colorBtn('highlight', 'Highlight', 'ca-hcol', '#fff3a3', ['#fff3a3', '#ffe08a', '#ffd3b0', '#ffc9c9', '#f6c6e7', '#e3d3ff', '#cfe0ff', '#c6f0ff', '#c8f2d4', '#e6f2c2', '#eeeeee', '#d9dde3'],
+    v => (v ? ed.chain().focus().setHighlight({ color: v }).run() : ed.chain().focus().unsetHighlight().run()), () => ed.isActive('highlight'))
   const sep = () => h('span', { class: 'sep' })
   tools.append(
     tb('undo', 'Undo', () => ed.chain().focus().undo().run()), tb('redo', 'Redo', () => ed.chain().focus().redo().run()), sep(),
@@ -215,6 +237,7 @@ export async function openWorkspace(app: HTMLElement, id: string): Promise<WS | 
     tb('link', 'Link', ins.link, () => ed.isActive('link')),
     tb('image', 'Image', ins.image),
     tb('table', 'Table', ins.table),
+    tb('chart', 'Table or chart from CSV', ins.csv),
     tb('footnote', 'Footnote', ins.footnote),
     tb('xref', 'Cross-reference', ins.xref))
   const insBtn = h('button', { class: 'ic', title: 'Insert', 'aria-label': 'Insert', onclick: () => dropdown(insBtn, insertItems()) }, icon('plus'), icon('chev'))
@@ -229,8 +252,7 @@ export async function openWorkspace(app: HTMLElement, id: string): Promise<WS | 
       const ts = ed.getAttributes('textStyle')
       if (document.activeElement !== fontSel) fontSel.value = ts.fontFamily?.replace(/["']/g, '') || ''
       if (document.activeElement !== sizeIn) sizeIn.value = ts.fontSize ? String(parseFloat(ts.fontSize)) : ''
-      tc.bar.style.background = ts.color || '#1d1d1f'
-      hc.bar.style.background = ed.getAttributes('highlight').color || 'transparent'
+      hc.b.firstElementChild!.classList.toggle('on', ed.isActive('highlight'))
       outline.mark()
     })
   }
@@ -257,6 +279,25 @@ export async function openWorkspace(app: HTMLElement, id: string): Promise<WS | 
     else window.open(href, '_blank', 'noopener')
   }
   insp.el.addEventListener('ca-link', () => linkDialog(ed, dv))
+  insp.el.addEventListener('ca-chart', (e: any) => csvDialog(ed, e.detail))
+  attachContextMenu(ed, dv.root, {
+    link: () => linkDialog(ed, dv), follow: href => follow(href), footnote: ins.footnote, xref: ins.xref, bookmark: ins.bookmark,
+    paragraph: () => { showR(); insp.setTab('format'); setTimeout(() => [...insp.el.querySelectorAll('.sec')].find(s => s.textContent === 'Paragraph')?.scrollIntoView({ block: 'start' }), 30) },
+    replaceImage: pos => replaceImage(ed, doc, pos), editChart: pos => csvDialog(ed, pos),
+    table: ins.table, image: ins.image, csv: ins.csv
+  })
+  desk.addEventListener('wheel', e => {
+    if (!(e.ctrlKey || e.metaKey)) return
+    e.preventDefault()
+    const k = Math.exp(-e.deltaY * (e.deltaMode === 1 ? 0.05 : 0.0018))
+    const r = desk.getBoundingClientRect()
+    const fx = e.clientX - r.left + desk.scrollLeft, fy = e.clientY - r.top + desk.scrollTop
+    const z0 = dv.zoom
+    setZoom(z0 * k)
+    const q = dv.zoom / z0
+    desk.scrollLeft = fx * q - (e.clientX - r.left)
+    desk.scrollTop = fy * q - (e.clientY - r.top)
+  }, { passive: false })
   insp.el.addEventListener('ca-follow', (e: any) => follow(e.detail))
   dv.root.addEventListener('click', e => {
     const t = e.target as HTMLElement

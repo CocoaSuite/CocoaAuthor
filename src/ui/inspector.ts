@@ -79,6 +79,7 @@ export function inspectorPanel(ed: Editor, dv: DocView, doc: CADocument, onMeta:
     const sn = selectedNode(ed)
     const nt = sn?.node.type.name
     if (nt === 'image') return imageSec(sn!.pos)
+    if (nt === 'chart') return chartSec(sn!.pos)
     if (nt === 'footnote') return footnoteSec(sn!.pos)
     if (nt === 'xref') return xrefSec(sn!.pos)
     if (nt === 'bookmark') return bookmarkSec(sn!.pos)
@@ -102,12 +103,7 @@ export function inspectorPanel(ed: Editor, dv: DocView, doc: CADocument, onMeta:
     body.append(sec('Alignment'))
     const al = (ed.getAttributes(p.type.name).textAlign as string) || ''
     body.append(seg([['left', icon('alignl'), 'Left'], ['center', icon('alignc'), 'Center'], ['right', icon('alignr'), 'Right'], ['justify', icon('alignj'), 'Justify']], al, v => ed.chain().focus().setTextAlign(v).run()))
-    if (p.type.name === 'paragraph') {
-      body.append(fr('Indent', h('div', { class: 'fr' },
-        h('button', { class: 'ic', title: 'Decrease indent', onclick: () => ed.chain().focus().updateAttributes('paragraph', { indent: Math.max(0, (p.attrs.indent || 0) - 1) }).run() }, icon('outdent')),
-        h('span', { class: 'mute' }, String(p.attrs.indent || 0)),
-        h('button', { class: 'ic', title: 'Increase indent', onclick: () => ed.chain().focus().updateAttributes('paragraph', { indent: Math.min(8, (p.attrs.indent || 0) + 1) }).run() }, icon('indent')))))
-    }
+    if (p.type.name === 'paragraph' || p.type.name === 'heading') paraSec(p)
 
     body.append(sec('Text'))
     const ts = ed.getAttributes('textStyle')
@@ -152,6 +148,51 @@ export function inspectorPanel(ed: Editor, dv: DocView, doc: CADocument, onMeta:
     }
   }
 
+  const paraSec = (p: any) => {
+    const u = settingsOf(ed).units
+    const a = p.attrs
+    const setP = (o: Record<string, any>) => ed.chain().focus().updateAttributes('paragraph', o).updateAttributes('heading', o).run()
+    const unum = (v: number | null, on: (pt: number | null) => void) => {
+      const i = h('input', { type: 'number', step: u === 'mm' ? '1' : '0.05', placeholder: '0', value: v == null ? '' : String(ptToUnit(v, u)) }) as HTMLInputElement
+      i.addEventListener('change', () => on(i.value === '' ? null : unitToPt(parseFloat(i.value), u)))
+      return i
+    }
+    const pnum = (v: number | null, on: (v: number | null) => void, ph: string, step = 1) => {
+      const i = h('input', { type: 'number', step: String(step), min: '0', placeholder: ph, value: v == null ? '' : String(v) }) as HTMLInputElement
+      i.addEventListener('change', () => on(i.value === '' ? null : Math.max(0, parseFloat(i.value))))
+      return i
+    }
+    const left = a.left != null ? a.left : a.indent ? a.indent * 18 : null
+    const fl = a.firstLine
+    const flKind = fl == null || fl === 0 ? '' : fl > 0 ? 'first' : 'hang'
+    body.append(sec('Paragraph'))
+    body.append(h('div', { class: 'g2' },
+      h('label', {}, `Left indent (${u})`, unum(left, v => setP({ left: v, indent: 0 }))),
+      h('label', {}, `Right indent (${u})`, unum(a.right, v => setP({ right: v })))))
+    const flSel = sel([['', 'None'], ['first', 'First line'], ['hang', 'Hanging']], flKind, v => {
+      const mag = Math.abs(fl || 0) || unitToPt(u === 'mm' ? 10 : 0.4, u)
+      setP({ firstLine: v === '' ? null : v === 'first' ? mag : -mag })
+    })
+    const flIn = unum(fl == null ? null : Math.abs(fl), v => setP({ firstLine: v == null || v === 0 ? null : flKind === 'hang' ? -Math.abs(v) : Math.abs(v) }))
+    if (!flKind) flIn.disabled = true
+    body.append(h('div', { class: 'g2' }, h('label', {}, 'Special indent', flSel), h('label', {}, `By (${u})`, flIn)))
+    const S = stylesOf(ed).text
+    const sk: StyleKey = p.type.name === 'heading' ? (('h' + p.attrs.level) as StyleKey) : (['title', 'subtitle', 'caption'].includes(a.kind) ? a.kind : 'body')
+    const st = S[sk]
+    body.append(h('div', { class: 'g2' },
+      h('label', {}, 'Space before (pt)', pnum(a.before, v => setP({ before: v }), String(st.before))),
+      h('label', {}, 'Space after (pt)', pnum(a.after, v => setP({ after: v }), String(st.after)))))
+    const lhOpts: Opt[] = [['', `Style (${st.lineHeight})`], ['1', 'Single'], ['1.15', '1.15'], ['1.5', '1.5'], ['2', 'Double']]
+    if (a.lh != null && !lhOpts.some(o => o[0] === String(a.lh))) lhOpts.push([String(a.lh), String(a.lh)])
+    body.append(h('div', { class: 'g2' },
+      h('label', {}, 'Line spacing', sel(lhOpts, a.lh == null ? '' : String(a.lh), v => setP({ lh: v === '' ? null : +v }))),
+      h('label', {}, 'Exact multiple', pnum(a.lh, v => setP({ lh: v == null ? null : Math.max(0.5, v) }), String(st.lineHeight), 0.05))))
+    body.append(sw('Keep with next', !!a.keepNext, v => setP({ keepNext: v })))
+    body.append(sw('Page break before', !!a.breakBefore, v => setP({ breakBefore: v })))
+    if ([a.left, a.right, a.firstLine, a.before, a.after, a.lh].some(x => x != null) || a.indent || a.keepNext || a.breakBefore)
+      body.append(h('button', { onclick: () => setP({ left: null, right: null, firstLine: null, before: null, after: null, lh: null, indent: 0, keepNext: false, breakBefore: false }) }, 'Reset paragraph settings'))
+  }
+
   const tableSec = () => {
     body.append(sec('Table'))
     const b = (label: string, f: () => any) => h('button', { onclick: f }, label)
@@ -190,6 +231,22 @@ export function inspectorPanel(ed: Editor, dv: DocView, doc: CADocument, onMeta:
       hasCap ? h('button', { onclick: () => ed.chain().setTextSelection(pos + n.nodeSize + 1).focus().run() }, 'Edit caption')
         : h('button', { onclick: () => ed.chain().insertContentAt(pos + n.nodeSize, { type: 'paragraph', attrs: { kind: 'caption', label: 'figure' } }).setTextSelection(pos + n.nodeSize + 1).focus().run() }, 'Add caption')))
     body.append(h('button', { class: 'danger', onclick: () => ed.chain().focus().deleteSelection().run() }, icon('trash'), 'Delete image'))
+  }
+
+  const chartSec = (pos: number) => {
+    const n = ed.state.doc.nodeAt(pos)!
+    const set = (k: string, v: any) => ed.view.dispatch(ed.state.tr.setNodeAttribute(pos, k, v))
+    body.append(sec('Chart'))
+    body.append(fr('Type', sel([['column', 'Column'], ['bar', 'Bar'], ['line', 'Line'], ['area', 'Area'], ['pie', 'Pie']], n.attrs.kind, v => set('kind', v))))
+    body.append(fr('Title', txt(n.attrs.title, v => set('title', v))))
+    body.append(sw('Legend', !!n.attrs.legend, v => set('legend', v)))
+    const r = h('input', { type: 'range', min: '20', max: '100', step: '5', value: String(n.attrs.width) }) as HTMLInputElement
+    r.addEventListener('change', () => set('width', +r.value))
+    body.append(fr('Width', h('div', { class: 'fr' }, r, h('span', { class: 'mute' }, n.attrs.width + '%'))))
+    body.append(fr('Shape', sel([['0.42', 'Wide'], ['0.56', 'Standard'], ['0.75', 'Tall'], ['0.62', 'Square-ish']], String(n.attrs.ratio), v => set('ratio', +v))))
+    body.append(fr('Align', seg([['left', icon('alignl'), 'Left'], ['center', icon('alignc'), 'Center'], ['right', icon('alignr'), 'Right']], n.attrs.align, v => set('align', v))))
+    body.append(h('button', { onclick: () => el.dispatchEvent(new CustomEvent('ca-chart', { detail: pos })) }, icon('edit'), 'Edit data…'))
+    body.append(h('button', { class: 'danger', onclick: () => ed.chain().focus().deleteSelection().run() }, icon('trash'), 'Delete chart'))
   }
 
   const footnoteSec = (pos: number) => {
