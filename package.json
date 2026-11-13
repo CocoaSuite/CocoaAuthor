@@ -29,6 +29,7 @@
     "@tiptap/starter-kit": "^3.32.2",
     "docx": "^9.15.1",
     "fflate": "^0.8.3",
+    "hyphen": "^1.14.1",
     "mammoth": "^1.13.0",
     "markdown-it": "^15.0.3",
     "markdown-it-footnote": "^4.0.0",

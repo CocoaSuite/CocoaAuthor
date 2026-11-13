@@ -417,6 +417,23 @@ export const ParaFormat = Extension.create({
   }
 })
 
+/** Manual kerning and tracking: letter spacing on a run of text, in em. */
+export const Spacing = Extension.create({
+  name: 'caSpacing',
+  addGlobalAttributes() {
+    return [{
+      types: ['textStyle'],
+      attributes: {
+        letterSpacing: {
+          default: null,
+          parseHTML: (el: HTMLElement) => { const v = el.style.letterSpacing; return v && v.endsWith('em') ? parseFloat(v) : null },
+          renderHTML: (a: any) => (a.letterSpacing ? { style: `letter-spacing:${a.letterSpacing}em` } : {})
+        }
+      }
+    }]
+  }
+})
+
 /** A named character style. */
 export const CharStyle = Mark.create({
   name: 'cstyle',
@@ -446,6 +463,6 @@ export function extensions() {
     Highlight.configure({ multicolor: true }),
     TextAlign.configure({ types: ['heading', 'paragraph'] }),
     Table.configure({ resizable: false, cellMinWidth: 30 }), TableRow, HeadCell, Cell,
-    ParaFormat, Ids, LayoutExt
+    ParaFormat, Spacing, Ids, LayoutExt
   ]
 }

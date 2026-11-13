@@ -2,7 +2,8 @@ import { DocView } from '../editor/docview'
 import { assets } from '../editor/registry'
 import { store } from '../storage/store'
 import { assetIds } from '../model/doc'
-import type { CADocument } from '../model/types'
+import { defaultSettings, defaultStyles, type CADocument } from '../model/types'
+import { hyphenateContent } from '../layout/hyphenate'
 
 export const metaLite = (doc: CADocument) => () => ({
   title: doc.meta.title, subtitle: doc.meta.subtitle, author: doc.meta.author,
@@ -27,7 +28,11 @@ export async function renderForExport(doc: CADocument, host?: HTMLElement): Prom
     host.style.cssText = 'position:fixed;left:-100000px;top:0;pointer-events:none;contain:layout'
     document.body.append(host)
   }
-  const dv = new DocView(host, doc.content, 'export', metaLite(doc))
+  const settings = { ...defaultSettings(), ...(doc.content?.attrs?.settings || {}) }
+  const styles = { ...defaultStyles(), ...(doc.content?.attrs?.styles || {}) }
+  let content = doc.content
+  try { content = await hyphenateContent(doc.content, settings, styles) } catch (e) { console.warn('Hyphenation skipped', e) }
+  const dv = new DocView(host, content, 'export', metaLite(doc))
   await dv.ready()
   return { dv, dispose() { dv.destroy(); if (own) host!.remove() } }
 }

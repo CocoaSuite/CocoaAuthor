@@ -117,6 +117,10 @@ export function inspectorPanel(ed: Editor, dv: DocView, doc: CADocument, onMeta:
     const ts = ed.getAttributes('textStyle')
     body.append(fr('Font', sel([['', 'From style'], ...fontOpts], ts.fontFamily?.replace(/"/g, '') || '', v => v ? ed.chain().focus().setFontFamily(v).run() : ed.chain().focus().unsetFontFamily().run())))
     body.append(fr('Size', num(parseFloat(ts.fontSize) || NaN, v => v > 0 ? ed.chain().focus().setFontSize(v + 'px').run() : ed.chain().focus().unsetFontSize().run(), { min: 0, max: 200, step: 0.5 }), ))
+    const lsIn = h('input', { type: 'number', step: '5', placeholder: '0', value: ts.letterSpacing ? String(Math.round(ts.letterSpacing * 1000)) : '' }) as HTMLInputElement
+    lsIn.addEventListener('change', () => { const v = parseFloat(lsIn.value); ed.chain().focus().setMark('textStyle', { letterSpacing: !v ? null : v / 1000 }).removeEmptyTextStyle().run() })
+    body.append(fr('Kerning / tracking', h('div', { class: 'fr' }, lsIn, h('span', { class: 'mute' }, '/1000 em'))))
+    body.append(h('p', { class: 'hint' }, 'Alt+Left/Right adjusts the selection, or the space after the letter before the cursor. Add Shift for bigger steps.'))
     const hl = ed.getAttributes('highlight').color
     body.append(fr('Colour', h('div', { class: 'fr' }, color(ts.color || '#1d1d1f', v => ed.chain().focus().setColor(v).run()), h('button', { onclick: () => ed.chain().focus().unsetColor().run() }, 'Reset'))))
     body.append(fr('Highlight', h('div', { class: 'fr' }, color(hl || '#fff3a3', v => ed.chain().focus().setHighlight({ color: v }).run()), h('button', { onclick: () => ed.chain().focus().unsetHighlight().run() }, 'None'))))
@@ -483,6 +487,7 @@ export function inspectorPanel(ed: Editor, dv: DocView, doc: CADocument, onMeta:
     const ps = settingsOf(ed)
     body.append(sec('Language'))
     body.append(fr('Language', sel([['en-US', 'English (US)'], ['en-GB', 'English (UK)'], ['ru', 'Russian']], ps.lang, v => setSettings(ed, { lang: v as any }))))
+    body.append(sw('Hyphenate body text', !!ps.hyphenate, v => setSettings(ed, { hyphenate: v })))
     body.append(sw('Check spelling as you type', ps.spell !== false, v => setSettings(ed, { spell: v })))
     const ign = ps.spellIgnore || []
     if (ign.length) body.append(h('div', { class: 'row' }, h('span', { class: 'mute' }, `${ign.length} ignored word${ign.length > 1 ? 's' : ''}`), h('button', { onclick: () => { setSettings(ed, { spellIgnore: [] }); render(true) } }, 'Check them again')))

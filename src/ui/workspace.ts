@@ -9,7 +9,7 @@ import { icon } from './icons'
 import { menuBar, toast, dropdown, confirmBox } from './dialogs'
 import { outlinePanel } from './outline'
 import { inspectorPanel } from './inspector'
-import { currentBlockStyle, setBlockStyle, setCharStyle, stylesOf, insertImage, addImageAsset, insertSectionBreak, settingsOf, setSettings, type BlockStyle } from './commands'
+import { currentBlockStyle, setBlockStyle, setCharStyle, stylesOf, nudgeSpacing, insertImage, addImageAsset, insertSectionBreak, settingsOf, setSettings, type BlockStyle } from './commands'
 import { linkDialog, xrefDialog, tableDialog, noteDialog, bookmarkDialog, exportPDF, exportDOCX, exportFile, preview } from './docdialogs'
 import { metaLite, ensureAssets } from '../export/render'
 import { attachContextMenu } from './contextmenu'
@@ -342,6 +342,12 @@ export async function openWorkspace(app: HTMLElement, id: string): Promise<WS | 
 
   const keys = (e: KeyboardEvent) => {
     if (e.key === 'F7') { e.preventDefault(); spelling(); return }
+    if (e.altKey && !e.metaKey && !e.ctrlKey && (e.key === 'ArrowLeft' || e.key === 'ArrowRight') && ed.view.hasFocus()) {
+      e.preventDefault()
+      const v = nudgeSpacing(ed, (e.key === 'ArrowRight' ? 1 : -1) * (e.shiftKey ? 0.05 : 0.01))
+      if (v != null) toast((ed.state.selection.empty ? 'Kerning ' : 'Tracking ') + Math.round(v * 1000) + ' / 1000 em', 1200)
+      return
+    }
     const mod = e.metaKey || e.ctrlKey
     if (!mod) return
     const k = e.key.toLowerCase()

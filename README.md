@@ -16,7 +16,8 @@ It runs in the browser (hosted on GitHub Pages) and as a desktop app for Windows
 - Automatic table of contents, cross-references, footnotes and endnotes
 - Headers and footers with page numbers, different first page and odd/even pages
 - Preview that shows exactly what the PDF will contain
-- PDF export with embedded fonts, selectable text, working links, a clickable table of contents, bookmarks and metadata
+- Typography: kerning and ligatures on by default, manual kerning and tracking (Alt+Left/Right), OpenType small caps, old-style and tabular figures, and English and Russian hyphenation
+- PDF export with embedded fonts, kerning, OpenType features, hyphenation, selectable text, working links, a clickable table of contents, bookmarks and metadata
 - Word export with native heading styles, lists, tables, images, hyperlinks, bookmarks, cross-references, footnotes, endnotes, table of contents, headers, footers and optional embedded fonts
 - Word import (text, headings, lists, tables, images, links, notes and page layout)
 - Markdown import (`.md`, or a `.zip` with its images): front matter, headings, lists, task lists, tables, footnotes, quotes, GitHub alerts as callouts, code, images with captions, links between headings and page breaks (`\pagebreak`, `\newpage` or `<!-- pagebreak -->`)

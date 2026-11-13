@@ -86,6 +86,7 @@ export interface PageSettings {
   headingNumbers: boolean
   units: 'mm' | 'in'
   lang: 'en-US' | 'en-GB' | 'ru'
+  hyphenate: boolean
   spell: boolean
   spellIgnore: string[]
 }
@@ -191,6 +192,7 @@ export function defaultSettings(): PageSettings {
     headingNumbers: false,
     units: 'mm',
     lang: defaultLang(),
+    hyphenate: false,
     spell: true,
     spellIgnore: []
   }

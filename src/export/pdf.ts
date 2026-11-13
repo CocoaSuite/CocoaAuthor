@@ -30,12 +30,14 @@ export async function buildPDF(dv: DocView, doc: CADocument, progress: PDFProgre
   const pdf = await PDFDocument.create()
   pdf.registerFontkit(fontkit)
   const fonts = new Map<string, Promise<PDFFont>>()
-  const getFont = (file: string) => {
-    let f = fonts.get(file)
+  // One embedded font per file and set of OpenType features, so substitutions match the screen.
+  const getFont = (file: string, feat: Feat) => {
+    const k = file + '|' + featKey(feat)
+    let f = fonts.get(k)
     if (!f) {
-      f = fontBytes(file).then(b => pdf.embedFont(b, { subset: !file.startsWith('inter'), features: { liga: false, kern: false, calt: false } as any }))
+      f = fontBytes(file).then(b => pdf.embedFont(b, { subset: !file.startsWith('inter'), features: fkFeatures(feat) as any }))
         .catch(() => pdf.embedFont(StandardFonts.Helvetica))
-      fonts.set(file, f)
+      fonts.set(k, f)
     }
     return f
   }
@@ -227,12 +229,14 @@ export async function buildPDF(dv: DocView, doc: CADocument, progress: PDFProgre
     const weight = parseInt(ps.fontWeight) || 400
     const italic = ps.fontStyle === 'italic' || ps.fontStyle.startsWith('oblique')
     const file = fontFile(key, weight, italic)
-    const fp = getFont(file)
+    const ls0 = ps.letterSpacing === 'normal' ? 0 : parseFloat(ps.letterSpacing) || 0
+    const feat = featuresOf(ps, ls0 !== 0)
+    const fp = getFont(file, feat)
     pending.push(fp)
     const size = parseFloat(ps.fontSize)
     const col = parseColor(ps.color) || { r: 0, g: 0, b: 0, a: 1 }
     const asc = FONT_METRICS[key].asc * size
-    const ls = ps.letterSpacing === 'normal' ? 0 : parseFloat(ps.letterSpacing) || 0
+    const ls = ls0
     const tt = ps.textTransform
     const tf = (x: string) => (tt === 'uppercase' ? x.toUpperCase() : tt === 'lowercase' ? x.toLowerCase() : tt === 'capitalize' ? x.replace(/\b\p{L}/gu, m => m.toUpperCase()) : x)
     let blk: Element | null = p
@@ -259,17 +263,35 @@ export async function buildPDF(dv: DocView, doc: CADocument, progress: PDFProgre
           cur = { x, top, bottom, str: m[0], end: m.index + m[0].length, right: X(r.right) }
         }
       } else {
+        // The word is broken across lines (usually at a soft hyphen): one run per line.
         if (cur) { runs.push(cur); cur = null }
+        let seg: { x: number; top: number; bottom: number; str: string } | null = null
+        let shy = false
         for (let i = 0; i < m[0].length; i++) {
+          const ch = m[0][i]
+          // A soft hyphen only matters if the line breaks right after it; its own box is unreliable.
+          if (ch === SHY) { shy = true; continue }
           range.setStart(t, m.index + i); range.setEnd(t, m.index + i + 1)
-          const r = range.getClientRects()[0]
-          if (r) runs.push({ x: X(r.left), top: Y(r.top), bottom: Y(r.bottom), str: m[0][i] })
+          // After a break the browser can report a character on both lines; the last box is where it is drawn.
+          const r = Array.from(range.getClientRects()).filter(q => q.width > 0 || q.height > 0).pop()
+          if (!r) continue
+          const top = Y(r.top)
+          if (seg && Math.abs(seg.top - top) >= 0.5) {
+            if (shy) seg.str += '-'
+            runs.push(seg)
+            seg = null
+          }
+          shy = false
+          if (!seg) seg = { x: X(r.left), top, bottom: Y(r.bottom), str: '' }
+          seg.str += ch
         }
+        if (seg) runs.push(seg)
       }
     }
     if (cur) runs.push(cur)
     for (const r of runs) {
-      const str = tf(r.str)
+      const str = tf(r.str.split(SHY).join(''))
+      if (!str) continue
       const base = r.top + asc
       place(tg, {
         y0: r.top, y1: r.bottom,
@@ -277,7 +299,9 @@ export async function buildPDF(dv: DocView, doc: CADocument, progress: PDFProgre
           const font = (fp as any).value as PDFFont
           if (!font) return
           if (ls) pg.pushOperators(setCharacterSpacing(ls))
-          pg.drawText(safeText(font, str), { x: r.x - ox, y: ph - (base - oy), size, font, ...fill(col) })
+          for (const sg of kernSegments(font, str, feat, size, ls)) {
+            pg.drawText(safeText(font, sg.s), { x: r.x + sg.dx - ox, y: ph - (base - oy), size, font, ...fill(col) })
+          }
           if (ls) pg.pushOperators(setCharacterSpacing(0))
         }
       })
@@ -378,6 +402,56 @@ function toRgb(hex: string): string {
   const f = m.length === 3 ? m.split('').map(c => c + c).join('') : m
   const n = parseInt(f.slice(0, 6), 16)
   return `rgb(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255})`
+}
+
+const SHY = '\u00ad'
+
+interface Feat { kern: boolean; liga: boolean; dlig: boolean; smcp: boolean; onum: boolean; tnum: boolean }
+const featKey = (f: Feat) => (Object.keys(f) as (keyof Feat)[]).map(k => (f[k] ? 1 : 0)).join('')
+const fkFeatures = (f: Feat) => ({ kern: f.kern, liga: f.liga, clig: f.liga, calt: true, dlig: f.dlig, smcp: f.smcp, onum: f.onum, tnum: f.tnum })
+
+/** Read the OpenType features the browser used for this text from its computed style. */
+function featuresOf(cs: CSSStyleDeclaration, spaced: boolean): Feat {
+  const ffs = cs.fontFeatureSettings || ''
+  const on = (tag: string) => new RegExp(`"${tag}"(?!\\s*(?:0|off))`).test(ffs)
+  const off = (tag: string) => new RegExp(`"${tag}"\\s*(?:0|off)`).test(ffs)
+  const lig = cs.fontVariantLigatures || ''
+  return {
+    kern: cs.fontKerning !== 'none' && !off('kern'),
+    // Browsers drop optional ligatures in letter-spaced text.
+    liga: !spaced && !/no-common-ligatures|none/.test(lig) && !off('liga'),
+    dlig: !spaced && (on('dlig') || /discretionary-ligatures/.test(lig) && !/no-discretionary/.test(lig)),
+    smcp: on('smcp') || cs.fontVariantCaps === 'small-caps',
+    onum: on('onum') || /oldstyle-nums/.test(cs.fontVariantNumeric || ''),
+    tnum: on('tnum') || /tabular-nums/.test(cs.fontVariantNumeric || '')
+  }
+}
+
+/**
+ * Split a string where kerning moves a glyph, so each piece can be drawn at its kerned position.
+ * pdf-lib substitutes glyphs (ligatures, small caps, figures) but does not apply kerning by itself.
+ */
+function kernSegments(font: PDFFont, str: string, feat: Feat, size: number, ls: number): { s: string; dx: number }[] {
+  const fk = (font as any).embedder?.font
+  if (!fk?.layout || !feat.kern) return [{ s: str, dx: 0 }]
+  let run: any
+  try { run = fk.layout(str, fkFeatures(feat)) } catch { return [{ s: str, dx: 0 }] }
+  const k = size / fk.unitsPerEm
+  const out: { s: string; dx: number }[] = []
+  let x = 0, segX = 0, seg = ''
+  for (let i = 0; i < run.glyphs.length; i++) {
+    const g = run.glyphs[i], p = run.positions[i]
+    const chars = String.fromCodePoint(...(g.codePoints || []))
+    seg += chars
+    x += p.xAdvance * k + ls * Math.max(1, chars.length)
+    if (Math.abs(p.xAdvance - g.advanceWidth) > 0.5 && i < run.glyphs.length - 1) {
+      out.push({ s: seg, dx: segX })
+      seg = ''
+      segX = x
+    }
+  }
+  if (seg) out.push({ s: seg, dx: segX })
+  return out
 }
 
 function safeText(font: PDFFont, s: string) {

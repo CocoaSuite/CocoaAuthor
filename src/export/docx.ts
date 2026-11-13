@@ -119,6 +119,7 @@ export async function buildDOCX(doc: CADocument, layout: Layout | null, opts: { 
             if (a.color) o.color = hex(a.color)
             if (a.fontFamily) { o.font = a.fontFamily.replace(/["']/g, '').split(',')[0].trim(); usedFonts.add(o.font) }
             if (a.fontSize) o.size = hp(parseFloat(a.fontSize))
+            if (a.letterSpacing) o.characterSpacing = Math.round(a.letterSpacing * (a.fontSize ? parseFloat(a.fontSize) : (S.text.body?.size || 10.5)) * 20)
           } else if (m.type === 'cstyle' && a.id && findCustom(S, a.id)) o.style = csId(a.id)
           else if (m.type === 'link') link = a.href
         }
@@ -364,6 +365,7 @@ export async function buildDOCX(doc: CADocument, layout: Layout | null, opts: { 
     keywords: doc.meta.keywords,
     description: doc.meta.subtitle,
     evenAndOddHeaderAndFooters: s.oddEven,
+    hyphenation: s.hyphenate ? { autoHyphenation: true, hyphenationZone: 360, consecutiveHyphenLimit: 3 } : undefined,
     fonts,
     features: { updateFields: false },
     pageNumbers: Object.assign(() => ({

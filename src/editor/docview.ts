@@ -58,7 +58,13 @@ export class DocView {
       content,
       editable: mode === 'edit',
       injectCSS: true,
-      editorProps: { attributes: { spellcheck: 'false' } }
+      editorProps: {
+        attributes: (st: any) => {
+          const s = st.doc.attrs.settings || {}
+          const lang = s.lang || 'en-US'
+          return { spellcheck: 'false', lang, class: mode === 'edit' && s.hyphenate ? 'hy' : '' }
+        }
+      }
     })
     const over = document.createElement('div')
     over.className = 'ca-over'

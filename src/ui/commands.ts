@@ -273,3 +273,29 @@ export function docStats(doc: PMNode) {
   })
   return { words, chars, figs, tables, links, notes }
 }
+
+/** Adjust letter spacing: the selection (tracking) or the character before the cursor (kerning). Step in em. */
+export function nudgeSpacing(ed: Editor, step: number) {
+  const { state } = ed
+  let { from, to, empty } = state.selection
+  if (empty) { if (from <= 1) return; from = from - 1 }
+  const $f = state.doc.resolve(from)
+  if (!$f.parent.isTextblock) return
+  const type = state.schema.marks.textStyle
+  let curV = 0
+  state.doc.nodesBetween(from, to, n => { if (n.isText) { const m = n.marks.find(x => x.type === type); if (m?.attrs.letterSpacing) curV = m.attrs.letterSpacing; return false } })
+  const v = Math.round((curV + step) * 1000) / 1000
+  let tr = state.tr
+  state.doc.nodesBetween(from, to, (n, pos) => {
+    if (!n.isText) return
+    const a = Math.max(from, pos), b = Math.min(to, pos + n.nodeSize)
+    const old = n.marks.find(x => x.type === type)
+    const attrs = { ...(old?.attrs || {}), letterSpacing: v || null }
+    const emptyAttrs = Object.values(attrs).every(x => x == null)
+    tr = tr.removeMark(a, b, type)
+    if (!emptyAttrs) tr = tr.addMark(a, b, type.create(attrs))
+  })
+  if (empty) tr = tr.setSelection(state.selection.map(tr.doc, tr.mapping))
+  ed.view.dispatch(tr)
+  return v
+}
