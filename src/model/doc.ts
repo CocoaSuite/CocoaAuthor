@@ -48,7 +48,7 @@ export function normalize(d: any): CADocument {
   const base = newDoc()
   const doc: CADocument = { ...base, ...d, meta: { ...base.meta, ...(d.meta || {}) }, assets: d.assets || {} }
   const c = doc.content || base.content
-  c.attrs = { settings: { ...defaultSettings(), ...(c.attrs?.settings || {}) }, styles: { ...defaultStyles(), ...(c.attrs?.styles || {}), text: { ...defaultStyles().text, ...(c.attrs?.styles?.text || {}) } } }
+  c.attrs = { settings: { ...defaultSettings(), ...(c.attrs?.settings || {}) }, styles: { ...defaultStyles(), ...(c.attrs?.styles || {}), text: { ...defaultStyles().text, ...(c.attrs?.styles?.text || {}) } }, frames: Array.isArray(c.attrs?.frames) ? c.attrs.frames : null }
   if (!Array.isArray(c.content) || !c.content.length) c.content = base.content.content
   doc.content = c
   return doc
