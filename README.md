@@ -22,6 +22,7 @@ It runs in the browser (hosted on GitHub Pages) and as a desktop app for Windows
 - Word export with native heading styles, lists, tables, images, hyperlinks, bookmarks, cross-references, footnotes, endnotes, table of contents, headers, footers and optional embedded fonts
 - Word import (text, headings, lists, tables, images, links, notes and page layout)
 - Markdown import (`.md`, or a `.zip` with its images): front matter, headings, lists, task lists, tables, footnotes, quotes, GitHub alerts as callouts, code, images with captions, links between headings and page breaks (`\pagebreak`, `\newpage` or `<!-- pagebreak -->`)
+- Find and replace (Ctrl+F, Ctrl+H) with match case, whole words and regular expressions
 - Spell checking for English (US and UK) and Russian, also in mixed-language documents: suggestions on right-click, a spelling panel (F7), a personal dictionary and per-document ignored words
 - Autosave, undo and redo
 

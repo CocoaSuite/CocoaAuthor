@@ -19,6 +19,7 @@ import { go } from '../router'
 import { customs } from '../model/styles'
 import { spellingPanel, editDictionary } from '../spell/panel'
 import { cropDialog, cropDialogFor } from './cropdialog'
+import { findPanel } from './findpanel'
 import { insertFloatingImage, insertTextBox } from './framecmds'
 
 export interface WS { dispose(): Promise<void> }
@@ -151,6 +152,8 @@ export async function openWorkspace(app: HTMLElement, id: string): Promise<WS | 
       { label: 'Select all', run: () => ed.chain().focus().selectAll().run() },
       { label: 'Clear formatting', run: () => ed.chain().focus().unsetAllMarks().run() },
       'sep',
+      { label: 'Find…  Ctrl+F', run: () => findPanel(ed, mid, false) },
+      { label: 'Replace…  Ctrl+H', run: () => findPanel(ed, mid, true) },
       { label: 'Spelling…  F7', run: spelling },
       { label: settingsOf(ed).spell === false ? 'Check spelling as you type' : 'Stop checking spelling', run: () => setSettings(ed, { spell: settingsOf(ed).spell === false }) },
       { label: 'Personal dictionary…', run: editDictionary }
@@ -372,6 +375,8 @@ export async function openWorkspace(app: HTMLElement, id: string): Promise<WS | 
     if (!mod) return
     const k = e.key.toLowerCase()
     if (k === 's') { e.preventDefault(); save().then(() => toast('Saved')) }
+    else if (k === 'f' && !e.shiftKey && !e.altKey) { e.preventDefault(); findPanel(ed, mid, false) }
+    else if (k === 'h' && !e.shiftKey) { e.preventDefault(); findPanel(ed, mid, true) }
     else if (k === 'k') { e.preventDefault(); linkDialog(ed, dv) }
     else if (k === 'p' && !e.shiftKey) { e.preventDefault(); preview(doc, ed) }
     else if (k === '=' || k === '+') { e.preventDefault(); setZoom(dv.zoom * 1.15) }

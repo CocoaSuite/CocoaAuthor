@@ -1,4 +1,5 @@
 import { spellPlugin } from '../spell/plugin'
+import { searchPlugin } from './search'
 import { FrameLayer, wrapPlugin, applyWraps, sameWraps, wrapKey, framesOf } from '../layout/frames'
 import { Editor } from '@tiptap/core'
 import { extensions } from './extensions'
@@ -83,6 +84,7 @@ export class DocView {
     })
     if (mode === 'edit') {
       this.editor.registerPlugin(spellPlugin())
+      this.editor.registerPlugin(searchPlugin())
       document.fonts.addEventListener('loadingdone', this.onFonts)
       this.schedule(0)
       loadUsedFonts(this.root).finally(() => { if (!this.destroyed) this.schedule(0) })

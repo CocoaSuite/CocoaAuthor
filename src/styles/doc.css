@@ -114,3 +114,5 @@
 .ca-img .ca-h[data-h=se]{left:auto;right:0;top:auto;bottom:0}.ca-img .ca-h[data-h=sw]{left:0;top:auto;bottom:0}.ca-img .ca-h[data-h=w]{left:0;top:50%;margin-top:calc(-4.5px * var(--inv, 1))}
 .is-edit .ca-img.ProseMirror-selectednode .ca-h{display:block}
 .is-edit .ca-img .ca-imgb{cursor:grab}
+.is-edit .ca-find{background:rgba(255,213,79,.45);border-radius:1px}
+.is-edit .ca-find.cur{background:rgba(255,152,0,.75)}
