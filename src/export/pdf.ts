@@ -177,10 +177,16 @@ export async function buildPDF(dv: DocView, doc: CADocument, progress: PDFProgre
     const br = boxEl.getBoundingClientRect()
     const bx = X(br.left), by = Y(br.top), bw = br.width / sc, bh = br.height / sc
     if (bw < 1 || bh < 1) return
-    const nw = img.naturalWidth || bw, nh = img.naturalHeight || bh
-    const k = Math.max(bw / nw, bh / nh)
-    const dw = nw * k, dh = nh * k
-    const dx = bx + (bw - dw) / 2, dy = by + (bh - dh) / 2
+    let dx: number, dy: number, dw: number, dh: number
+    if (getComputedStyle(img).position === 'absolute') {
+      const ir = img.getBoundingClientRect()
+      dx = X(ir.left); dy = Y(ir.top); dw = ir.width / sc; dh = ir.height / sc
+    } else {
+      const nw = img.naturalWidth || bw, nh = img.naturalHeight || bh
+      const k = Math.max(bw / nw, bh / nh)
+      dw = nw * k; dh = nh * k
+      dx = bx + (bw - dw) / 2; dy = by + (bh - dh) / 2
+    }
     const pr = getImage(img)
     pending.push(pr)
     place(tg, {

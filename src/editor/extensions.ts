@@ -13,6 +13,7 @@ import { assets } from './registry'
 import { uid, esc } from '../util'
 import { layoutPlugin } from '../layout/plugin'
 import { chartURL, type ChartData } from './chart'
+import { frameRatio, placeImage } from './imagegeom'
 
 const idAttr = {
   default: null,
@@ -97,7 +98,12 @@ export const Img = Node.create({
       width: { default: 100 },
       align: { default: 'center' },
       alt: { default: '' },
-      crop: { default: null }
+      crop: { default: null },
+      fit: { default: null },
+      cx: { default: null },
+      cy: { default: null },
+      zoom: { default: null },
+      cropRect: { default: null }
     }
   },
   parseHTML: () => [{
@@ -122,8 +128,13 @@ export const Img = Node.create({
         const a = n.attrs
         dom.dataset.align = a.align
         box.style.width = a.width + '%'
-        const ratio = a.crop ? a.crop.replace(':', ' / ') : `${a.w} / ${a.h}`
-        box.style.aspectRatio = ratio
+        const fr = frameRatio(a as any)
+        box.style.aspectRatio = `1 / ${fr}`
+        const g = placeImage(a as any, a.w, a.h, 1, fr)
+        img.style.left = g.dx * 100 + '%'
+        img.style.top = (g.dy / fr) * 100 + '%'
+        img.style.width = g.dw * 100 + '%'
+        img.style.height = (g.dh / fr) * 100 + '%'
         const src = a.src.startsWith('asset:') ? assets.url(a.src.slice(6)) : a.src
         if (img.getAttribute('src') !== src) img.src = src
         img.alt = a.alt

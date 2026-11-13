@@ -4,6 +4,8 @@ import { icon } from './icons'
 import { FONTS, PAGE_SIZES, STYLE_KEYS, STYLE_NAMES, defaultStyles, type CADocument, type HF, type StyleKey, type DocStatus } from '../model/types'
 import { settingsOf, stylesOf, setSettings, setStyles, currentBlockStyle, setBlockStyle, sectionAt, setSectionAttr, removeSectionBreak, selectedNode, findParent, replaceImage, allTargets, docStats, type BlockStyle } from './commands'
 import { xrefText } from '../layout/plugin'
+import { cropDialog } from './cropdialog'
+import { CROP_PRESETS } from '../editor/imagegeom'
 import type { DocView } from '../editor/docview'
 
 type Opt = [string, string]
@@ -221,7 +223,26 @@ export function inspectorPanel(ed: Editor, dv: DocView, doc: CADocument, onMeta:
     r.addEventListener('change', () => set('width', +r.value))
     body.append(fr('Width', h('div', { class: 'fr' }, r, h('span', { class: 'mute' }, n.attrs.width + '%'))))
     body.append(fr('Align', seg([['left', icon('alignl'), 'Left'], ['center', icon('alignc'), 'Center'], ['right', icon('alignr'), 'Right']], n.attrs.align, v => set('align', v))))
-    body.append(fr('Crop', sel([['', 'Original'], ['1:1', 'Square'], ['4:3', '4:3'], ['3:2', '3:2'], ['16:9', '16:9'], ['3:4', 'Portrait 3:4']], n.attrs.crop || '', v => set('crop', v || null))))
+    const A = n.attrs
+    const setM = (patch: Record<string, any>) => ed.view.dispatch(ed.state.tr.setNodeMarkup(pos, undefined, { ...ed.state.doc.nodeAt(pos)!.attrs, ...patch }))
+    if (A.cropRect) {
+      body.append(fr('Crop', h('div', { class: 'fr' }, h('span', { class: 'mute' }, `Custom, ${Math.round(A.cropRect.w * A.w)} × ${Math.round(A.cropRect.h * A.h)} px`))))
+      body.append(h('div', { class: 'g2' }, h('button', { onclick: () => cropDialog(ed, pos) }, 'Edit crop…'), h('button', { onclick: () => setM({ cropRect: null }) }, 'Remove crop')))
+    } else {
+      body.append(fr('Frame', sel(CROP_PRESETS, A.crop || '', v => setM({ crop: v || null, zoom: null, cx: null, cy: null }))))
+      body.append(fr('Fit', seg([['fill', 'Fill'], ['fit', 'Fit'], ['stretch', 'Stretch']], A.fit || 'fill', v => setM({ fit: v === 'fill' ? null : v }))))
+      if (A.crop && (A.fit || 'fill') === 'fill') {
+        const rng = (k: string, min: number, max: number, val: number, f: (v: number) => any) => {
+          const i = h('input', { type: 'range', min: String(min), max: String(max), step: '1', value: String(val) }) as HTMLInputElement
+          i.addEventListener('input', () => set(k, f(+i.value)))
+          return i
+        }
+        body.append(fr('Zoom', rng('zoom', 100, 400, Math.round((A.zoom || 1) * 100), v => (v === 100 ? null : v / 100))))
+        body.append(fr('Horizontal', rng('cx', 0, 100, Math.round((A.cx ?? 0.5) * 100), v => (v === 50 ? null : v / 100))))
+        body.append(fr('Vertical', rng('cy', 0, 100, Math.round((A.cy ?? 0.5) * 100), v => (v === 50 ? null : v / 100))))
+      }
+      body.append(h('button', { onclick: () => cropDialog(ed, pos) }, 'Crop…'))
+    }
     body.append(fr('Alt text', txt(n.attrs.alt, v => set('alt', v), 'Describe the image')))
     body.append(h('div', { class: 'hint' }, `${n.attrs.w} × ${n.attrs.h} px`))
     const next = ed.state.doc.resolve(pos + n.nodeSize).nodeAfter

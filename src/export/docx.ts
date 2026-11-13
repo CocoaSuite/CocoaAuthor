@@ -1,3 +1,4 @@
+import { frameRatio, placeImage, isPlain, type ImgAttrs } from '../editor/imagegeom'
 import {
   Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType, Table, TableRow, TableCell, WidthType, BorderStyle, ShadingType,
   ExternalHyperlink, InternalHyperlink, Bookmark, ImageRun, PageBreak, PageReference, SimpleField, TableOfContents, FootnoteReferenceRun,
@@ -138,9 +139,9 @@ export async function buildDOCX(doc: CADocument, layout: Layout | null, opts: { 
     const id = String(n.attrs.src || '').replace('asset:', '')
     const blob = assets.blob(id)
     if (!blob) return new Paragraph({ children: [new TextRun({ text: '[image missing]', color: '999999' })] })
-    const ratio = n.attrs.crop ? (() => { const [a, b] = n.attrs.crop.split(':').map(Number); return b / a })() : n.attrs.h / n.attrs.w
+    const ratio = frameRatio(n.attrs)
     const wpx = contentWidthPx(land) * (n.attrs.width || 100) / 100
-    const { data, type } = await imageData(blob, n.attrs.crop ? 1 / ratio : null)
+    const { data, type } = await imageData(blob, isPlain(n.attrs) ? null : n.attrs)
     return new Paragraph({
       alignment: ALIGN[n.attrs.align] || AlignmentType.CENTER,
       keepNext: true,
@@ -377,26 +378,30 @@ export async function buildDOCX(doc: CADocument, layout: Layout | null, opts: { 
   return Packer.toBlob(docx)
 }
 
-async function imageData(blob: Blob, crop: number | null): Promise<{ data: Uint8Array; type: 'png' | 'jpg' | 'gif' | 'bmp' }> {
+async function imageData(blob: Blob, geom: ImgAttrs | null): Promise<{ data: Uint8Array; type: 'png' | 'jpg' | 'gif' | 'bmp' }> {
   const bytes = new Uint8Array(await blob.arrayBuffer())
   const png = bytes[0] === 0x89 && bytes[1] === 0x50
   const jpg = bytes[0] === 0xff && bytes[1] === 0xd8
   const gif = bytes[0] === 0x47 && bytes[1] === 0x49
-  if (!crop && (png || jpg || gif)) return { data: bytes, type: png ? 'png' : jpg ? 'jpg' : 'gif' }
+  if (!geom && (png || jpg || gif)) return { data: bytes, type: png ? 'png' : jpg ? 'jpg' : 'gif' }
   const url = URL.createObjectURL(blob)
   const img = new Image()
   await new Promise(r => { img.onload = img.onerror = r; img.src = url })
   URL.revokeObjectURL(url)
-  let w = img.naturalWidth || 1200, h = img.naturalHeight || 900
-  let sx = 0, sy = 0, sw = w, sh = h
-  if (crop) {
-    const want = crop
-    if (w / h > want) { sw = h * want; sx = (w - sw) / 2 } else { sh = w / want; sy = (h - sh) / 2 }
+  const w = img.naturalWidth || 1200, h = img.naturalHeight || 900
+  let fw = w, fh = h
+  if (geom) {
+    const fr = frameRatio(geom, w, h)
+    // Keep the source resolution: size the frame so the image is drawn at roughly 1:1.
+    const g = placeImage(geom, w, h, 1, fr)
+    const scale = w / g.dw
+    fw = scale; fh = fr * scale
   }
-  const k = Math.min(1, 4096 / Math.max(sw, sh))
+  const k = Math.min(1, 4096 / Math.max(fw, fh))
   const cv = document.createElement('canvas')
-  cv.width = Math.round(sw * k); cv.height = Math.round(sh * k)
-  cv.getContext('2d')!.drawImage(img, sx, sy, sw, sh, 0, 0, cv.width, cv.height)
-  const out = await new Promise<Blob | null>(r => cv.toBlob(r, 'image/png'))
-  return { data: new Uint8Array(await out!.arrayBuffer()), type: 'png' }
+  cv.width = Math.max(1, Math.round(fw * k)); cv.height = Math.max(1, Math.round(fh * k))
+  const g = geom ? placeImage(geom, w, h, cv.width, cv.height) : { dx: 0, dy: 0, dw: cv.width, dh: cv.height }
+  cv.getContext('2d')!.drawImage(img, g.dx, g.dy, g.dw, g.dh)
+  const out = await new Promise<Blob | null>(r => cv.toBlob(r, jpg && !(geom && geom.fit === 'fit') ? 'image/jpeg' : 'image/png', 0.92))
+  return { data: new Uint8Array(await out!.arrayBuffer()), type: jpg && !(geom && geom.fit === 'fit') ? 'jpg' : 'png' }
 }

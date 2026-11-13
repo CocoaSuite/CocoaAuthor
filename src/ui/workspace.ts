@@ -17,6 +17,7 @@ import { csvDialog } from './csv'
 import { replaceImage } from './commands'
 import { go } from '../router'
 import { spellingPanel, editDictionary } from '../spell/panel'
+import { cropDialog } from './cropdialog'
 
 export interface WS { dispose(): Promise<void> }
 
@@ -305,6 +306,11 @@ export async function openWorkspace(app: HTMLElement, id: string): Promise<WS | 
     desk.scrollTop = fy * q - (e.clientY - r.top)
   }, { passive: false })
   insp.el.addEventListener('ca-follow', (e: any) => follow(e.detail))
+  dv.root.addEventListener('dblclick', e => {
+    const fig = (e.target as HTMLElement).closest('figure.ca-img:not(.ca-chartv)')
+    if (!fig) return
+    try { const p = ed.view.posAtDOM(fig, 0); const at = ed.state.doc.nodeAt(p)?.type.name === 'image' ? p : p - 1; if (ed.state.doc.nodeAt(at)?.type.name === 'image') { e.preventDefault(); cropDialog(ed, at) } } catch {}
+  })
   dv.root.addEventListener('click', e => {
     const t = e.target as HTMLElement
     const toc = t.closest('.ca-toce') as HTMLAnchorElement | null
