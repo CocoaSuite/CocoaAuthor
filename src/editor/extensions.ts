@@ -406,10 +406,26 @@ export const ParaFormat = Extension.create({
         after: num('after', v => `margin-bottom:${v}px`),
         lh: num('lh', v => `line-height:${v}`),
         keepNext: flag('keepNext'),
-        breakBefore: flag('breakBefore')
+        breakBefore: flag('breakBefore'),
+        pstyle: {
+          default: null,
+          parseHTML: (el: HTMLElement) => el.getAttribute('data-ps') || null,
+          renderHTML: (a: any) => (a.pstyle ? { 'data-ps': a.pstyle, class: 'ps-' + String(a.pstyle).replace(/[^\w-]/g, '_') } : {})
+        }
       }
     }]
   }
+})
+
+/** A named character style. */
+export const CharStyle = Mark.create({
+  name: 'cstyle',
+  excludes: 'cstyle',
+  addAttributes() {
+    return { id: { default: null, parseHTML: el => el.getAttribute('data-cs'), renderHTML: a => ({ 'data-cs': a.id, class: 'cs-' + String(a.id).replace(/[^\w-]/g, '_') }) } }
+  },
+  parseHTML: () => [{ tag: 'span[data-cs]' }],
+  renderHTML: ({ HTMLAttributes }) => ['span', HTMLAttributes, 0]
 })
 
 export const LayoutExt = Extension.create({
@@ -424,7 +440,7 @@ export function extensions() {
       link: false, trailingNode: false,
       bulletList: { keepMarks: true }, orderedList: { keepMarks: true }
     } as any),
-    CADoc, Section, Para, Head, Callout, PageBreak, Img, Chart, Toc, Footnote, Xref, Bookmark, Hint,
+    CADoc, Section, Para, Head, Callout, PageBreak, Img, Chart, Toc, Footnote, Xref, Bookmark, Hint, CharStyle,
     Link.configure({ openOnClick: false, autolink: true, linkOnPaste: true, protocols: ['mailto', 'tel'], HTMLAttributes: { target: null, rel: null, class: null } }),
     TextStyle, Color, FontFamily, FontSize,
     Highlight.configure({ multicolor: true }),

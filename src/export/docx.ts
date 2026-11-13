@@ -1,3 +1,4 @@
+import { customs, findCustom, isBuiltin, resolvePara, resolveChar, rootKey, cssId } from '../model/styles'
 import { frameRatio, placeImage, isPlain, type ImgAttrs } from '../editor/imagegeom'
 import {
   Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType, Table, TableRow, TableCell, WidthType, BorderStyle, ShadingType,
@@ -26,11 +27,30 @@ const ALIGN: Record<string, any> = { left: AlignmentType.LEFT, center: Alignment
 const NUMFMT: Record<string, any> = { decimal: NumberFormat.DECIMAL, 'lower-roman': NumberFormat.LOWER_ROMAN, 'upper-roman': NumberFormat.UPPER_ROMAN, 'lower-alpha': NumberFormat.LOWER_LETTER, 'upper-alpha': NumberFormat.UPPER_LETTER }
 
 function runStyle(t: TextStyleDef) {
-  return { font: t.font, size: hp(t.size), bold: t.weight >= 600, italics: t.italic, color: hex(t.color), allCaps: t.caps, characterSpacing: t.tracking ? Math.round(t.tracking * t.size * 20) : undefined }
+  return { font: t.font, size: hp(t.size), bold: t.weight >= 600, italics: t.italic, color: hex(t.color), allCaps: t.caps, smallCaps: t.smcp || undefined, kern: t.kern === false ? undefined : hp(8), characterSpacing: t.tracking ? Math.round(t.tracking * t.size * 20) : undefined }
 }
 function paraStyle(t: TextStyleDef) {
-  return { spacing: { before: tw(t.before), after: tw(t.after), line: Math.round(240 * t.lineHeight) }, alignment: ALIGN[t.align] }
+  const indent: any = {}
+  if (t.indent) indent.left = tw(t.indent)
+  if (t.firstLine) { if (t.firstLine > 0) indent.firstLine = tw(t.firstLine); else indent.hanging = tw(-t.firstLine) }
+  return { spacing: { before: tw(t.before), after: tw(t.after), line: Math.round(240 * t.lineHeight) }, alignment: ALIGN[t.align], ...(Object.keys(indent).length ? { indent } : {}) }
 }
+/** Run properties for just what a character style sets. */
+function charRun(t: Partial<TextStyleDef>) {
+  const o: any = {}
+  if (t.font) o.font = t.font
+  if (t.size) o.size = hp(t.size)
+  if (t.weight) o.bold = t.weight >= 600
+  if (t.italic != null) o.italics = t.italic
+  if (t.color) o.color = hex(t.color)
+  if (t.caps != null) o.allCaps = t.caps
+  if (t.smcp != null) o.smallCaps = t.smcp
+  if (t.tracking != null && t.size) o.characterSpacing = Math.round(t.tracking * t.size * 20)
+  return o
+}
+const WORD_ID: Record<string, string> = { body: 'Normal', title: 'Title', subtitle: 'Subtitle', h1: 'Heading1', h2: 'Heading2', h3: 'Heading3', h4: 'Heading4', quote: 'Quote', caption: 'Caption', list: 'ListParagraph', table: 'TableText', footnote: 'FootnoteText', header: 'Header' }
+const psId = (id: string) => 'CS_' + cssId(id)
+const csId = (id: string) => 'CC_' + cssId(id)
 
 function pfmt(a: any, base: { indent?: any } = {}) {
   const o: any = {}
@@ -99,7 +119,8 @@ export async function buildDOCX(doc: CADocument, layout: Layout | null, opts: { 
             if (a.color) o.color = hex(a.color)
             if (a.fontFamily) { o.font = a.fontFamily.replace(/["']/g, '').split(',')[0].trim(); usedFonts.add(o.font) }
             if (a.fontSize) o.size = hp(parseFloat(a.fontSize))
-          } else if (m.type === 'link') link = a.href
+          } else if (m.type === 'cstyle' && a.id && findCustom(S, a.id)) o.style = csId(a.id)
+          else if (m.type === 'link') link = a.href
         }
         if (link) { o.style = 'Hyperlink'; o.color = hex(S.link); o.underline = {} }
         const run = new TextRun(o)
@@ -155,7 +176,7 @@ export async function buildDOCX(doc: CADocument, layout: Layout | null, opts: { 
     for (const n of nodes || []) {
       const a = n.attrs || {}
       if (n.type === 'paragraph') {
-        let style: string | undefined = a.kind === 'title' ? 'Title' : a.kind === 'subtitle' ? 'Subtitle' : a.kind === 'caption' ? 'Caption' : undefined
+        let style: string | undefined = a.pstyle && findCustom(S, a.pstyle) ? psId(a.pstyle) : a.kind === 'title' ? 'Title' : a.kind === 'subtitle' ? 'Subtitle' : a.kind === 'caption' ? 'Caption' : undefined
         if (!style && ctx.quote) style = 'Quote'
         if (!style && ctx.cell) style = 'TableText'
         if (!style && ctx.list) style = 'ListParagraph'
@@ -181,8 +202,9 @@ export async function buildDOCX(doc: CADocument, layout: Layout | null, opts: { 
         const num = s.headingNumbers ? hc.slice(0, l).map(x => x || 1).join('.') : ''
         const kids = [...(num ? [new TextRun(num + '  ')] : []), ...runsOf(n)]
         headingsList.push({ id: a.id, text: (num ? num + ' ' : '') + textOf(schema().nodeFromJSON(n)), level: l })
+        const cst = a.pstyle && findCustom(S, a.pstyle) ? psId(a.pstyle) : undefined
         out.push(new Paragraph({
-          heading: [HeadingLevel.HEADING_1, HeadingLevel.HEADING_2, HeadingLevel.HEADING_3, HeadingLevel.HEADING_4][l - 1],
+          ...(cst ? { style: cst } : { heading: [HeadingLevel.HEADING_1, HeadingLevel.HEADING_2, HeadingLevel.HEADING_3, HeadingLevel.HEADING_4][l - 1] }),
           alignment: a.textAlign ? ALIGN[a.textAlign] : undefined,
           ...pfmt(a),
           children: a.id ? [new Bookmark({ id: bm(a.id), children: kids })] : kids
@@ -310,6 +332,7 @@ export async function buildDOCX(doc: CADocument, layout: Layout | null, opts: { 
   const T = S.text
   const pstyle = (id: string, name: string, t: TextStyleDef, extra: any = {}) => ({ id, name, basedOn: 'Normal', next: 'Normal', quickFormat: true, run: runStyle(t), paragraph: { ...paraStyle(t), ...extra } })
   for (const k of Object.keys(T)) usedFonts.add((T as any)[k].font)
+  for (const c of customs(S)) if (c.o.font) usedFonts.add(c.o.font)
 
   let fonts: any[] | undefined
   if (opts.embedFonts) {
@@ -368,8 +391,15 @@ export async function buildDOCX(doc: CADocument, layout: Layout | null, opts: { 
         pstyle('FootnoteText', 'footnote text', T.footnote),
         pstyle('Header', 'header', T.header),
         pstyle('Footer', 'footer', T.header),
-        pstyle('TOCHeading', 'TOC Heading', T.h1, { keepNext: true })
-      ]
+        pstyle('TOCHeading', 'TOC Heading', T.h1, { keepNext: true }),
+        ...customs(S).filter(c => c.type === 'para').map(c => {
+          const t = resolvePara(S, c.id)
+          const base = isBuiltin(c.base) ? WORD_ID[c.base] : findCustom(S, c.base) ? psId(c.base) : 'Normal'
+          const head = /^h[1-4]$/.test(rootKey(S, c.id))
+          return { id: psId(c.id), name: c.name, basedOn: base, next: 'Normal', quickFormat: true, run: runStyle(t), paragraph: { ...paraStyle(t), ...(head ? { keepNext: true, keepLines: true } : {}) } }
+        })
+      ],
+      characterStyles: customs(S).filter(c => c.type === 'char').map(c => ({ id: csId(c.id), name: c.name, basedOn: c.base && findCustom(S, c.base) ? csId(c.base) : undefined, quickFormat: true, run: charRun(resolveChar(S, c.id)) }))
     },
     footnotes,
     endnotes,

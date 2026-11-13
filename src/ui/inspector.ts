@@ -1,8 +1,10 @@
 import type { Editor } from '@tiptap/core'
-import { h, ptToUnit, unitToPt, relTime } from '../util'
+import { h, ptToUnit, unitToPt, relTime, uid } from '../util'
 import { icon } from './icons'
-import { FONTS, PAGE_SIZES, STYLE_KEYS, STYLE_NAMES, defaultStyles, type CADocument, type HF, type StyleKey, type DocStatus } from '../model/types'
-import { settingsOf, stylesOf, setSettings, setStyles, currentBlockStyle, setBlockStyle, sectionAt, setSectionAttr, removeSectionBreak, selectedNode, findParent, replaceImage, allTargets, docStats, type BlockStyle } from './commands'
+import { FONTS, PAGE_SIZES, STYLE_KEYS, STYLE_NAMES, OT_FEATURES, defaultStyles, type CADocument, type HF, type StyleKey, type DocStatus, type CustomStyle, type TextStyleDef } from '../model/types'
+import { customs, findCustom, isBuiltin, resolvePara, resolveChar } from '../model/styles'
+import { promptBox, confirmBox } from './dialogs'
+import { settingsOf, stylesOf, setSettings, setStyles, currentBlockStyle, setBlockStyle, setCharStyle, currentCharStyle, sectionAt, setSectionAttr, removeSectionBreak, selectedNode, findParent, replaceImage, allTargets, docStats, type BlockStyle } from './commands'
 import { xrefText } from '../layout/plugin'
 import { cropDialog } from './cropdialog'
 import { CROP_PRESETS } from '../editor/imagegeom'
@@ -55,7 +57,7 @@ const fontOpts: Opt[] = FONTS.map(f => [f.name, f.name])
 
 export function inspectorPanel(ed: Editor, dv: DocView, doc: CADocument, onMeta: () => void) {
   let tab = 'format'
-  let styleKey: StyleKey = 'body'
+  let styleKey: string = 'body'
   const tabs = h('div', { class: 'tabs', role: 'tablist' })
   const body = h('div', { class: 'ib' })
   const el = h('aside', { id: 'insp' }, tabs, body)
@@ -95,6 +97,8 @@ export function inspectorPanel(ed: Editor, dv: DocView, doc: CADocument, onMeta:
     const S = stylesOf(ed).text
     const opts: [BlockStyle, StyleKey][] = [['body', 'body'], ['title', 'title'], ['subtitle', 'subtitle'], ['h1', 'h1'], ['h2', 'h2'], ['h3', 'h3'], ['h4', 'h4'], ['caption', 'caption']]
     for (const [k, sk] of opts) sp.append(h('button', { class: cur === k ? 'on' : '', onclick: () => setBlockStyle(ed, k) }, h('span', {}, STYLE_NAMES[sk]), h('span', {}, `${S[sk].font.split(' ')[0]} ${S[sk].size}`)))
+    const SS = stylesOf(ed)
+    for (const c of customs(SS).filter(c => c.type === 'para')) { const t = resolvePara(SS, c.id); sp.append(h('button', { class: cur === c.id ? 'on' : '', onclick: () => setBlockStyle(ed, c.id) }, h('span', {}, c.name), h('span', {}, `${t.font.split(' ')[0]} ${t.size}`))) }
     body.append(sp)
 
     const p = ed.state.selection.$from.parent
@@ -108,6 +112,8 @@ export function inspectorPanel(ed: Editor, dv: DocView, doc: CADocument, onMeta:
     if (p.type.name === 'paragraph' || p.type.name === 'heading') paraSec(p)
 
     body.append(sec('Text'))
+    const chars = customs(stylesOf(ed)).filter(c => c.type === 'char')
+    if (chars.length) body.append(fr('Character style', sel([['', 'None'], ...chars.map(c => [c.id, c.name] as Opt)], currentCharStyle(ed), v => setCharStyle(ed, v || null))))
     const ts = ed.getAttributes('textStyle')
     body.append(fr('Font', sel([['', 'From style'], ...fontOpts], ts.fontFamily?.replace(/"/g, '') || '', v => v ? ed.chain().focus().setFontFamily(v).run() : ed.chain().focus().unsetFontFamily().run())))
     body.append(fr('Size', num(parseFloat(ts.fontSize) || NaN, v => v > 0 ? ed.chain().focus().setFontSize(v + 'px').run() : ed.chain().focus().unsetFontSize().run(), { min: 0, max: 200, step: 0.5 }), ))
@@ -364,26 +370,100 @@ export function inspectorPanel(ed: Editor, dv: DocView, doc: CADocument, onMeta:
 
   const stylesTab = () => {
     const S = stylesOf(ed)
+    const cs = customs(S)
+    if (!isBuiltin(styleKey) && !findCustom(S, styleKey)) styleKey = 'body'
+    const custom = findCustom(S, styleKey)
     body.append(sec('Styles'))
-    body.append(h('p', { class: 'hint' }, 'Changing a style updates every paragraph that uses it.'))
-    body.append(fr('Style', sel(STYLE_KEYS.map(k => [k, STYLE_NAMES[k]] as Opt), styleKey, v => { styleKey = v as StyleKey; render(true) })))
-    const t = S.text[styleKey]
-    const set = (k: string, v: any) => setStyles(ed, s => { (s.text[styleKey] as any)[k] = v })
-    body.append(fr('Font', sel(fontOpts, t.font, v => set('font', v))))
-    body.append(h('div', { class: 'g2' },
-      h('label', {}, 'Size (pt)', num(t.size, v => set('size', Math.max(4, v)), { step: 0.5, min: 4 })),
-      h('label', {}, 'Weight', sel([['400', 'Regular'], ['500', 'Medium'], ['600', 'Semibold'], ['700', 'Bold']], String(t.weight), v => set('weight', +v)))))
-    body.append(h('div', { class: 'g2' },
-      h('label', {}, 'Line height', num(t.lineHeight, v => set('lineHeight', Math.max(0.8, v)), { step: 0.05, min: 0.8 })),
-      h('label', {}, 'Letter spacing', num(t.tracking, v => set('tracking', v), { step: 0.01 }))))
-    body.append(h('div', { class: 'g2' },
-      h('label', {}, 'Space before (pt)', num(t.before, v => set('before', Math.max(0, v)), { min: 0 })),
-      h('label', {}, 'Space after (pt)', num(t.after, v => set('after', Math.max(0, v)), { min: 0 }))))
-    body.append(fr('Colour', color(t.color, v => set('color', v))))
-    body.append(fr('Align', seg([['left', icon('alignl'), 'Left'], ['center', icon('alignc'), 'Center'], ['right', icon('alignr'), 'Right'], ['justify', icon('alignj'), 'Justify']], t.align, v => set('align', v))))
-    body.append(sw('Italic', t.italic, v => set('italic', v)))
-    body.append(sw('All caps', t.caps, v => set('caps', v)))
-    body.append(h('button', { onclick: () => setStyles(ed, s => { s.text[styleKey] = defaultStyles().text[styleKey] }) }, 'Reset this style'))
+    body.append(h('p', { class: 'hint' }, 'Changing a style updates everything that uses it. Custom styles inherit from the style they are based on.'))
+    const pick = h('select', { onchange: () => { styleKey = pick.value; render(true) } }) as HTMLSelectElement
+    const og = (label: string, items: [string, string][]) => { if (!items.length) return; const g = h('optgroup', { label }); for (const [k, l] of items) g.append(h('option', { value: k }, l)); pick.append(g) }
+    og('Built-in', STYLE_KEYS.map(k => [k, STYLE_NAMES[k]]))
+    og('Paragraph styles', cs.filter(c => c.type === 'para').map(c => [c.id, c.name]))
+    og('Character styles', cs.filter(c => c.type === 'char').map(c => [c.id, c.name]))
+    pick.value = styleKey
+    body.append(fr('Style', pick))
+    const create = async (type: 'para' | 'char') => {
+      const name = await promptBox(type === 'para' ? 'New paragraph style' : 'New character style', 'Name', type === 'para' ? 'My paragraph style' : 'Emphasis', 'Create')
+      if (!name) return
+      const id = uid('s')
+      const cur = currentBlockStyle(ed) || 'body'
+      setStyles(ed, st => { st.custom = [...(st.custom || []), { id, name: name.trim() || 'Style', type, base: type === 'para' ? cur : '', o: {} }] })
+      styleKey = id
+      render(true)
+    }
+    body.append(h('div', { class: 'g2' }, h('button', { onclick: () => create('para') }, icon('plus'), 'Paragraph'), h('button', { onclick: () => create('char') }, icon('plus'), 'Character')))
+
+    const setC = (fn: (c: CustomStyle) => void) => setStyles(ed, st => { const c = (st.custom || []).find(x => x.id === styleKey); if (c) fn(c) })
+    if (custom) {
+      body.append(sec(custom.type === 'para' ? 'Paragraph style' : 'Character style'))
+      body.append(fr('Name', txt(custom.name, v => setC(c => { c.name = v.trim() || c.name }))))
+      // A style may not be based on itself or on anything that inherits from it.
+      const descends = (id: string): boolean => { let c = findCustom(S, id); const seen = new Set<string>(); while (c && !seen.has(c.id)) { if (c.id === custom.id) return true; seen.add(c.id); c = findCustom(S, c.base) } return false }
+      const bases: Opt[] = custom.type === 'para'
+        ? [...STYLE_KEYS.map(k => [k, STYLE_NAMES[k]] as Opt), ...cs.filter(c => c.type === 'para' && !descends(c.id)).map(c => [c.id, c.name] as Opt)]
+        : [['', 'None'], ...cs.filter(c => c.type === 'char' && !descends(c.id)).map(c => [c.id, c.name] as Opt)]
+      body.append(fr('Based on', sel(bases, custom.base, v => setC(c => { c.base = v }))))
+      body.append(h('div', { class: 'g2' },
+        h('button', { onclick: () => (custom.type === 'para' ? setBlockStyle(ed, custom.id) : setCharStyle(ed, custom.id)) }, 'Apply to selection'),
+        h('button', { class: 'danger', onclick: async () => {
+          if (!(await confirmBox('Delete style', `Delete "${custom.name}"? Text using it goes back to the style it was based on.`))) return
+          const id = custom.id, base = custom.base
+          setStyles(ed, st => { st.custom = (st.custom || []).filter(c => c.id !== id).map(c => (c.base === id ? { ...c, base } : c)) })
+          let tr = ed.state.tr
+          ed.state.doc.descendants((n, pos) => {
+            if (n.attrs?.pstyle === id) tr = tr.setNodeAttribute(pos, 'pstyle', findCustom(stylesOf(ed), base) ? base : null)
+            if (n.isText && n.marks.some(m => m.type.name === 'cstyle' && m.attrs.id === id)) {
+              tr = tr.removeMark(pos, pos + n.nodeSize, ed.schema.marks.cstyle)
+              if (base) tr = tr.addMark(pos, pos + n.nodeSize, ed.schema.marks.cstyle.create({ id: base }))
+            }
+          })
+          ed.view.dispatch(tr)
+          styleKey = 'body'
+          render(true)
+        } }, icon('trash'), 'Delete')))
+    }
+
+    const isChar = custom?.type === 'char'
+    const eff: Partial<TextStyleDef> = custom ? (isChar ? resolveChar(S, custom.id) : resolvePara(S, custom.id)) : S.text[styleKey as StyleKey]
+    const own = (k: keyof TextStyleDef) => (custom ? k in custom.o : false)
+    const set = (k: keyof TextStyleDef, v: any) => {
+      if (custom) setC(c => { if (v === undefined) delete (c.o as any)[k]; else (c.o as any)[k] = v })
+      else setStyles(ed, st => { if (v === undefined) delete (st.text[styleKey as StyleKey] as any)[k]; else (st.text[styleKey as StyleKey] as any)[k] = v })
+    }
+    const mark = (label: string, k: keyof TextStyleDef) => (own(k) ? h('span', {}, label, h('button', { class: 'ic xs', title: 'Use the inherited value', 'aria-label': 'Use the inherited value', onclick: () => set(k, undefined) }, '↺')) : label)
+    const tri = (k: keyof TextStyleDef, onDefault = false) => sel([['', isChar ? 'Inherit' : onDefault ? 'On (default)' : 'Off (default)'], ['1', 'On'], ['0', 'Off']], eff[k] == null || (!isChar && !own(k) && !custom && eff[k] === undefined) ? '' : eff[k] ? '1' : '0', v => set(k, v === '' ? undefined : v === '1'))
+
+    body.append(sec('Text'))
+    body.append(fr(isChar ? 'Font' : 'Font', sel(isChar ? [['', 'Inherit'], ...fontOpts] : fontOpts, (eff.font as string) || '', v => set('font', v || undefined))))
+    const nIn = (label: string, k: keyof TextStyleDef, o: { step?: number; min?: number } = {}, conv: (v: number) => number = v => v) => {
+      const i = h('input', { type: 'number', step: String(o.step ?? 1), min: o.min != null ? String(o.min) : null, placeholder: isChar ? 'Inherit' : '', value: eff[k] == null ? '' : String(eff[k]) }) as HTMLInputElement
+      i.addEventListener('change', () => set(k, i.value === '' ? undefined : conv(parseFloat(i.value))))
+      return h('label', {}, mark(label, k), i)
+    }
+    body.append(h('div', { class: 'g2' }, nIn('Size (pt)', 'size', { step: 0.5, min: 4 }, v => Math.max(4, v)),
+      h('label', {}, mark('Weight', 'weight'), sel([...(isChar ? [['', 'Inherit'] as Opt] : []), ['400', 'Regular'], ['500', 'Medium'], ['600', 'Semibold'], ['700', 'Bold']], eff.weight ? String(eff.weight) : '', v => set('weight', v ? +v : undefined)))))
+    if (!isChar) body.append(h('div', { class: 'g2' }, nIn('Line height', 'lineHeight', { step: 0.05, min: 0.8 }, v => Math.max(0.8, v)), nIn('Letter spacing', 'tracking', { step: 0.01 })))
+    else body.append(h('div', { class: 'g2' }, nIn('Letter spacing', 'tracking', { step: 0.01 }), h('label', {}, 'Italic', tri('italic'))))
+    if (!isChar) {
+      body.append(h('div', { class: 'g2' }, nIn('Space before (pt)', 'before', { min: 0 }, v => Math.max(0, v)), nIn('Space after (pt)', 'after', { min: 0 }, v => Math.max(0, v))))
+      body.append(h('div', { class: 'g2' }, nIn('First line (pt)', 'firstLine', { step: 1 }), nIn('Left indent (pt)', 'indent', { min: 0 }, v => Math.max(0, v))))
+    }
+    body.append(fr('Colour', isChar ? h('div', { class: 'fr' }, color((eff.color as string) || '#000000', v => set('color', v)), h('button', { onclick: () => set('color', undefined) }, 'Inherit')) : color(eff.color as string, v => set('color', v))))
+    if (!isChar) {
+      body.append(fr('Align', seg([['left', icon('alignl'), 'Left'], ['center', icon('alignc'), 'Center'], ['right', icon('alignr'), 'Right'], ['justify', icon('alignj'), 'Justify']], eff.align as string, v => set('align', v))))
+      body.append(sw('Italic', !!eff.italic, v => set('italic', v)))
+      body.append(sw('All caps', !!eff.caps, v => set('caps', v)))
+      body.append(fr('Hyphenation', sel([['', 'Document setting'], ['1', 'On'], ['0', 'Off']], eff.hyphenate == null ? '' : eff.hyphenate ? '1' : '0', v => set('hyphenate', v === '' ? undefined : v === '1'))))
+    } else body.append(fr('All caps', tri('caps')))
+
+    body.append(sec('OpenType'))
+    for (const [k, label] of OT_FEATURES) body.append(fr(label, tri(k, k === 'kern' || k === 'liga')))
+    body.append(h('p', { class: 'hint' }, 'Features the font does not include have no effect. Source Serif 4 and Lora have small caps and old-style figures.'))
+
+    body.append(h('button', { onclick: () => {
+      if (custom) setC(c => { c.o = {} })
+      else setStyles(ed, st => { st.text[styleKey as StyleKey] = defaultStyles().text[styleKey as StyleKey] })
+    } }, custom ? 'Clear changes' : 'Reset this style'))
     body.append(sec('Colours'))
     const c = (l: string, k: 'accent' | 'link' | 'grid' | 'tableHead' | 'calloutBg') => fr(l, color(S[k], v => setStyles(ed, s => { s[k] = v })))
     body.append(c('Accent', 'accent'), c('Links', 'link'), c('Table lines', 'grid'), c('Table header', 'tableHead'), c('Callouts', 'calloutBg'))

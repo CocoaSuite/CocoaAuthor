@@ -1,13 +1,39 @@
 import { defaultStyles, type StyleSet, type TextStyleDef } from '../model/types'
+import { customs, resolvePara, resolveChar, cssId, featureCSS } from '../model/styles'
 
 const fam = (f: string) => `"${f}", Inter, sans-serif`
 
 function decl(t: TextStyleDef) {
-  return `font-family:${fam(t.font)};font-size:${t.size}px;font-weight:${t.weight};font-style:${t.italic ? 'italic' : 'normal'};color:${t.color};line-height:${t.lineHeight};margin-top:${t.before}px;margin-bottom:${t.after}px;text-align:${t.align};letter-spacing:${t.tracking}em;text-transform:${t.caps ? 'uppercase' : 'none'}`
+  return `font-family:${fam(t.font)};font-size:${t.size}px;font-weight:${t.weight};font-style:${t.italic ? 'italic' : 'normal'};color:${t.color};line-height:${t.lineHeight};margin-top:${t.before}px;margin-bottom:${t.after}px;text-align:${t.align};letter-spacing:${t.tracking}em;text-transform:${t.caps ? 'uppercase' : 'none'};text-indent:${t.firstLine || 0}px;${t.indent ? `margin-left:${t.indent}px;` : ''}${featureCSS(t)}${hyph(t)}`
 }
 
 function run(t: TextStyleDef) {
-  return `font-family:${fam(t.font)};font-size:${t.size}px;font-weight:${t.weight};font-style:${t.italic ? 'italic' : 'normal'};color:${t.color};line-height:${t.lineHeight};letter-spacing:${t.tracking}em;text-transform:${t.caps ? 'uppercase' : 'none'}`
+  return `font-family:${fam(t.font)};font-size:${t.size}px;font-weight:${t.weight};font-style:${t.italic ? 'italic' : 'normal'};color:${t.color};line-height:${t.lineHeight};letter-spacing:${t.tracking}em;text-transform:${t.caps ? 'uppercase' : 'none'};${featureCSS(t)}`
+}
+
+const hyph = (t: TextStyleDef) => (t.hyphenate === true ? 'hyphens:auto;' : t.hyphenate === false ? 'hyphens:manual;' : '')
+
+/** Only the properties a character style sets. */
+function partial(t: Partial<TextStyleDef>) {
+  let c = ''
+  if (t.font) c += `font-family:${fam(t.font)};`
+  if (t.size) c += `font-size:${t.size}px;`
+  if (t.weight) c += `font-weight:${t.weight};`
+  if (t.italic != null) c += `font-style:${t.italic ? 'italic' : 'normal'};`
+  if (t.color) c += `color:${t.color};`
+  if (t.tracking != null) c += `letter-spacing:${t.tracking}em;`
+  if (t.caps != null) c += `text-transform:${t.caps ? 'uppercase' : 'none'};`
+  return c + featureCSS(t)
+}
+
+function customCSS(s: StyleSet, R: string) {
+  let css = ''
+  for (const c of customs(s)) {
+    const k = cssId(c.id)
+    if (c.type === 'para') css += `${R} .ps-${k}.ps-${k}{${decl(resolvePara(s, c.id))}}\n`
+    else css += `${R} .cs-${k}{${partial(resolveChar(s, c.id))}}\n`
+  }
+  return css
 }
 
 export function docCSS(st: StyleSet | null, scope = '.ca-flow'): string {
@@ -38,7 +64,7 @@ ${scope} .ca-fnb{${run(T.footnote)};padding-bottom:${T.footnote.after}px}
 ${scope} .ca-hf{${run(T.header)}}
 ${R} .ca-callout p.k-body{${decl(T.body)}}
 ${R} a,${R} .ca-xref{color:var(--link)}
-`
+${customCSS(s, R)}`
 }
 
 export function applyDocCSS(st: StyleSet | null) {

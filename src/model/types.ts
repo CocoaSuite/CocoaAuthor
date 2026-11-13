@@ -12,6 +12,33 @@ export interface TextStyleDef {
   align: Align
   tracking: number
   caps: boolean
+  /** Paragraph-level extras; absent means none. */
+  firstLine?: number
+  indent?: number
+  hyphenate?: boolean
+  /** Typography; absent means the default (kerning and ligatures on, everything else off). */
+  kern?: boolean
+  liga?: boolean
+  dlig?: boolean
+  smcp?: boolean
+  onum?: boolean
+  tnum?: boolean
+}
+
+export const OT_FEATURES: [keyof TextStyleDef, string, string][] = [
+  ['kern', 'Kerning', 'kern'], ['liga', 'Ligatures', 'liga'], ['dlig', 'Discretionary ligatures', 'dlig'],
+  ['smcp', 'Small caps', 'smcp'], ['onum', 'Old-style figures', 'onum'], ['tnum', 'Tabular figures', 'tnum']
+]
+
+export type CharStyleDef = Partial<Pick<TextStyleDef, 'font' | 'size' | 'weight' | 'italic' | 'color' | 'tracking' | 'caps' | 'kern' | 'liga' | 'dlig' | 'smcp' | 'onum' | 'tnum'>>
+
+export interface CustomStyle {
+  id: string
+  name: string
+  type: 'para' | 'char'
+  /** A built-in style key or another custom style's id. Character styles may have no base (''). */
+  base: string
+  o: Partial<TextStyleDef>
 }
 
 export const STYLE_KEYS = ['title', 'subtitle', 'h1', 'h2', 'h3', 'h4', 'body', 'quote', 'list', 'caption', 'table', 'footnote', 'header'] as const
@@ -29,6 +56,7 @@ export interface StyleSet {
   grid: string
   tableHead: string
   calloutBg: string
+  custom?: CustomStyle[]
 }
 
 export interface HF { left: string; center: string; right: string }

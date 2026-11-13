@@ -9,13 +9,14 @@ import { icon } from './icons'
 import { menuBar, toast, dropdown, confirmBox } from './dialogs'
 import { outlinePanel } from './outline'
 import { inspectorPanel } from './inspector'
-import { currentBlockStyle, setBlockStyle, insertImage, addImageAsset, insertSectionBreak, settingsOf, setSettings, type BlockStyle } from './commands'
+import { currentBlockStyle, setBlockStyle, setCharStyle, stylesOf, insertImage, addImageAsset, insertSectionBreak, settingsOf, setSettings, type BlockStyle } from './commands'
 import { linkDialog, xrefDialog, tableDialog, noteDialog, bookmarkDialog, exportPDF, exportDOCX, exportFile, preview } from './docdialogs'
 import { metaLite, ensureAssets } from '../export/render'
 import { attachContextMenu } from './contextmenu'
 import { csvDialog } from './csv'
 import { replaceImage } from './commands'
 import { go } from '../router'
+import { customs } from '../model/styles'
 import { spellingPanel, editDictionary } from '../spell/panel'
 import { cropDialog } from './cropdialog'
 
@@ -155,6 +156,8 @@ export async function openWorkspace(app: HTMLElement, id: string): Promise<WS | 
     { label: 'Format', items: () => [
       { header: 'Paragraph style' },
       ...(['body', 'title', 'subtitle', 'h1', 'h2', 'h3', 'h4', 'caption'] as BlockStyle[]).map(k => ({ label: STYLE_LABEL[k], run: () => setBlockStyle(ed, k) })),
+      ...customs(stylesOf(ed)).filter(c => c.type === 'para').map(c => ({ label: c.name, run: () => setBlockStyle(ed, c.id) })),
+      ...(customs(stylesOf(ed)).some(c => c.type === 'char') ? [{ header: 'Character style' }, { label: 'None', run: () => setCharStyle(ed, null) }, ...customs(stylesOf(ed)).filter(c => c.type === 'char').map(c => ({ label: c.name, run: () => setCharStyle(ed, c.id) }))] : []),
       'sep',
       { label: 'Edit styles…', icon: icon('type'), run: () => { showR(); insp.setTab('styles') } },
       { label: 'Page setup…', icon: icon('page'), run: () => { showR(); insp.setTab('page') } },
@@ -184,9 +187,23 @@ export async function openWorkspace(app: HTMLElement, id: string): Promise<WS | 
     exportBtn)
 
   const STYLE_LABEL: Record<BlockStyle, string> = { body: 'Body text', title: 'Title', subtitle: 'Subtitle', h1: 'Heading 1', h2: 'Heading 2', h3: 'Heading 3', h4: 'Heading 4', caption: 'Caption' }
-  const styleSel = h('select', { class: 'ssel', title: 'Paragraph style', 'aria-label': 'Paragraph style', onchange: () => { if (styleSel.value) setBlockStyle(ed, styleSel.value as BlockStyle) } }) as HTMLSelectElement
-  styleSel.append(h('option', { value: '' }, '—'))
-  for (const k of Object.keys(STYLE_LABEL) as BlockStyle[]) styleSel.append(h('option', { value: k }, STYLE_LABEL[k]))
+  const styleSel = h('select', { class: 'ssel', title: 'Paragraph style', 'aria-label': 'Paragraph style', onchange: () => { if (styleSel.value) setBlockStyle(ed, styleSel.value) } }) as HTMLSelectElement
+  let styleKeyList = ''
+  const fillStyles = () => {
+    const cs = customs(stylesOf(ed)).filter(c => c.type === 'para')
+    const k = cs.map(c => c.id + ':' + c.name).join('|')
+    if (k === styleKeyList && styleSel.options.length) return
+    styleKeyList = k
+    styleSel.innerHTML = ''
+    styleSel.append(h('option', { value: '' }, '—'))
+    for (const b of Object.keys(STYLE_LABEL) as BlockStyle[]) styleSel.append(h('option', { value: b }, STYLE_LABEL[b]))
+    if (cs.length) {
+      const g = h('optgroup', { label: 'Custom' })
+      for (const c of cs) g.append(h('option', { value: c.id }, c.name))
+      styleSel.append(g)
+    }
+  }
+  fillStyles()
   const fontSel = h('select', { class: 'fsel', title: 'Font', 'aria-label': 'Font', onchange: () => fontSel.value ? ed.chain().focus().setFontFamily(fontSel.value).run() : ed.chain().focus().unsetFontFamily().run() }) as HTMLSelectElement
   fontSel.append(h('option', { value: '' }, 'Style font'))
   for (const f of FONTS) fontSel.append(h('option', { value: f.name }, f.name))
@@ -255,6 +272,7 @@ export async function openWorkspace(app: HTMLElement, id: string): Promise<WS | 
     cancelAnimationFrame(raf)
     raf = requestAnimationFrame(() => {
       for (const [b, f] of actives) b.classList.toggle('on', !!f())
+      fillStyles()
       styleSel.value = currentBlockStyle(ed) || ''
       const ts = ed.getAttributes('textStyle')
       if (document.activeElement !== fontSel) fontSel.value = ts.fontFamily?.replace(/["']/g, '') || ''

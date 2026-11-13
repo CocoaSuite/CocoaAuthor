@@ -10,7 +10,7 @@ It runs in the browser (hosted on GitHub Pages) and as a desktop app for Windows
 - 20 templates for public relations, content, advertising and marketing
 - Live page layout as you type, or a single long page
 - Outline panel to navigate, rename, reorder, promote and demote sections
-- Styles for title, subtitle, headings, body, quotes, lists, captions, tables, footnotes, headers and footers
+- Styles for title, subtitle, headings, body, quotes, lists, captions, tables, footnotes, headers and footers, plus your own paragraph and character styles that inherit from a base style, with first-line and left indents, hyphenation and OpenType features (kerning, ligatures, small caps, old-style and tabular figures)
 - Images with fill, fit or stretch framing, zoom and position, preset frames and free cropping (double-click an image), embedded at full resolution in PDF and Word, and alignment, tables, callouts, quotes, dividers, page breaks and section breaks with their own orientation and page numbering
 - Links to websites, email addresses and phone numbers, and to headings, figures, tables, bookmarks and pages in the same document
 - Automatic table of contents, cross-references, footnotes and endnotes

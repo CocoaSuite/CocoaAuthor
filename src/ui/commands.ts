@@ -1,3 +1,4 @@
+import { findCustom, rootKey } from '../model/styles'
 import type { Editor } from '@tiptap/core'
 import type { Node as PMNode } from '@tiptap/pm/model'
 import { NodeSelection } from '@tiptap/pm/state'
@@ -29,18 +30,36 @@ export function setStyles(ed: Editor, fn: (s: StyleSet) => void) {
 
 export type BlockStyle = 'body' | 'title' | 'subtitle' | 'caption' | 'h1' | 'h2' | 'h3' | 'h4'
 
-export function currentBlockStyle(ed: Editor): BlockStyle | '' {
+const BLOCK_STYLES = new Set(['body', 'title', 'subtitle', 'caption', 'h1', 'h2', 'h3', 'h4'])
+
+/** The paragraph style at the cursor: a custom style id when one is applied, otherwise the built-in style. */
+export function currentBlockStyle(ed: Editor): string {
   const { $from } = ed.state.selection
   const n = $from.parent
+  if ((n.type.name === 'heading' || n.type.name === 'paragraph') && n.attrs.pstyle && findCustom(stylesOf(ed), n.attrs.pstyle)) return n.attrs.pstyle
   if (n.type.name === 'heading') return ('h' + n.attrs.level) as BlockStyle
   if (n.type.name === 'paragraph') return n.attrs.kind || 'body'
   return ''
 }
 
-export function setBlockStyle(ed: Editor, s: BlockStyle) {
+export function setBlockStyle(ed: Editor, s: string) {
+  const S = stylesOf(ed)
+  const custom = !BLOCK_STYLES.has(s) && findCustom(S, s)
+  const root = custom ? rootKey(S, s) : s
+  const b = (BLOCK_STYLES.has(root) ? root : 'body') as BlockStyle
   const c = ed.chain().focus()
-  if (s[0] === 'h') c.setNode('heading', { level: +s[1] }).run()
-  else c.setNode('paragraph', { kind: s, label: s === 'caption' ? 'figure' : null }).run()
+  if (b[0] === 'h') c.setNode('heading', { level: +b[1] })
+  else c.setNode('paragraph', { kind: b, label: b === 'caption' ? 'figure' : null })
+  c.updateAttributes(b[0] === 'h' ? 'heading' : 'paragraph', { pstyle: custom ? s : null }).run()
+}
+
+export function currentCharStyle(ed: Editor): string {
+  return ed.getAttributes('cstyle').id || ''
+}
+
+export function setCharStyle(ed: Editor, id: string | null) {
+  const c = ed.chain().focus()
+  if (id) c.setMark('cstyle', { id }).run(); else c.unsetMark('cstyle').run()
 }
 
 export function sectionAt(ed: Editor): { node: PMNode; pos: number; index: number } | null {
