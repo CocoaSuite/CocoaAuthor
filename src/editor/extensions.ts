@@ -115,7 +115,8 @@ export const Img = Node.create({
   }],
   renderHTML: ({ HTMLAttributes: a }) => ['img', { src: a.src.startsWith('asset:') ? assets.url(a.src.slice(6)) : a.src, alt: a.alt, 'data-src': a.src }],
   addNodeView() {
-    return ({ node }) => {
+    return ({ node: n0, getPos, editor }) => {
+      let node = n0
       const dom = document.createElement('figure')
       dom.className = 'ca-img'
       const box = document.createElement('div')
@@ -141,10 +142,41 @@ export const Img = Node.create({
         img.dataset.asset = a.src.startsWith('asset:') ? a.src.slice(6) : ''
       }
       apply(node)
+      // Resize handles: shown while the image is selected; they change its width in the column.
+      for (const hd of ['nw', 'ne', 'e', 'se', 'sw', 'w']) {
+        const i = document.createElement('i')
+        i.className = 'ca-h'
+        i.dataset.h = hd
+        i.contentEditable = 'false'
+        box.append(i)
+        i.addEventListener('pointerdown', ev => {
+          ev.preventDefault(); ev.stopPropagation()
+          const col = dom.getBoundingClientRect().width
+          const start = box.getBoundingClientRect().width
+          const sx = ev.clientX
+          const centred = dom.dataset.align === 'center'
+          const sign = hd.includes('w') ? -1 : 1
+          let pct = node.attrs.width
+          const move = (e: PointerEvent) => {
+            const d = (e.clientX - sx) * sign * (centred ? 2 : 1)
+            pct = Math.max(10, Math.min(100, Math.round(((start + d) / col) * 100)))
+            box.style.width = pct + '%'
+          }
+          const up = () => {
+            document.removeEventListener('pointermove', move)
+            document.removeEventListener('pointerup', up)
+            const pos = typeof getPos === 'function' ? getPos() : null
+            if (pos != null && pct !== node.attrs.width) editor.view.dispatch(editor.state.tr.setNodeAttribute(pos, 'width', pct))
+          }
+          document.addEventListener('pointermove', move)
+          document.addEventListener('pointerup', up)
+        })
+      }
       return {
         dom,
-        update(n) { if (n.type.name !== 'image') return false; apply(n); return true },
-        ignoreMutation: () => true
+        update(n) { if (n.type.name !== 'image') return false; node = n; apply(n); return true },
+        ignoreMutation: () => true,
+        stopEvent: (e: Event) => (e.target as HTMLElement)?.classList?.contains('ca-h') || false
       }
     }
   }
