@@ -257,6 +257,13 @@ export function inspectorPanel(ed: Editor, dv: DocView, doc: CADocument, onMeta:
     body.append(h('div', { class: 'g2' },
       h('label', {}, 'Line spacing', sel(lhOpts, a.lh == null ? '' : String(a.lh), v => setP({ lh: v === '' ? null : +v }))),
       h('label', {}, 'Exact multiple', pnum(a.lh, v => setP({ lh: v == null ? null : Math.max(0.5, v) }), String(st.lineHeight), 0.05))))
+    body.append(sw('Bar on the left', !!a.barW, v => setP(v ? { barW: 3, barGap: 12, barColor: null } : { barW: null, barGap: null, barColor: null })))
+    if (a.barW) {
+      body.append(h('div', { class: 'g2' },
+        h('label', {}, 'Bar width (pt)', num(a.barW, v => setP({ barW: Math.max(0.5, Math.min(40, v || 3)) }), { min: 0.5, max: 40, step: 0.5 })),
+        h('label', {}, 'Gap to text (pt)', num(a.barGap ?? 12, v => setP({ barGap: Math.max(0, Math.min(72, v || 0)) }), { min: 0, max: 72, step: 1 }))))
+      body.append(fr('Bar colour', h('div', { class: 'fr' }, color(a.barColor || stylesOf(ed).accent, v => setP({ barColor: v })), h('button', { onclick: () => setP({ barColor: null }) }, 'Accent'))))
+    }
     body.append(sw('Keep with next', !!a.keepNext, v => setP({ keepNext: v })))
     body.append(sw('Page break before', !!a.breakBefore, v => setP({ breakBefore: v })))
     if ([a.left, a.right, a.firstLine, a.before, a.after, a.lh].some(x => x != null) || a.indent || a.keepNext || a.breakBefore)

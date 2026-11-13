@@ -1,5 +1,6 @@
 import { spellPlugin } from '../spell/plugin'
 import { searchPlugin } from './search'
+import { barPlugin, applyBarJoins } from '../layout/bars'
 import { FrameLayer, wrapPlugin, applyWraps, sameWraps, wrapKey, framesOf } from '../layout/frames'
 import { Editor } from '@tiptap/core'
 import { extensions } from './extensions'
@@ -70,6 +71,7 @@ export class DocView {
       }
     })
     this.editor.registerPlugin(wrapPlugin())
+    this.editor.registerPlugin(barPlugin())
     this.objects = new FrameLayer(() => this.editor.view, this.root, mode, () => this.scale)
     const over = document.createElement('div')
     over.className = 'ca-over'
@@ -125,6 +127,7 @@ export class DocView {
         }
       }
       this.objects.render(this.layout)
+      applyBarJoins(v, this.scale)
       this.applyZoom()
     } finally {
       this.busy = false

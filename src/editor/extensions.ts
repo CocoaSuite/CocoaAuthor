@@ -439,6 +439,14 @@ export const ParaFormat = Extension.create({
         lh: num('lh', v => `line-height:${v}`),
         keepNext: flag('keepNext'),
         breakBefore: flag('breakBefore'),
+        // Decorative bar on the left: width in pt (null = none), gap to the text, colour (null = accent).
+        barW: {
+          default: null,
+          parseHTML: (el: HTMLElement) => (el.dataset.bar ? parseFloat(el.dataset.bar) || null : null),
+          renderHTML: (a: any) => a.barW ? { 'data-bar': String(a.barW), style: `border-left:${a.barW}px solid ${a.barColor || 'var(--accent)'};padding-left:${a.barGap ?? 12}px` } : {}
+        },
+        barGap: { default: null, parseHTML: (el: HTMLElement) => (el.dataset.barGap ? +el.dataset.barGap : null), renderHTML: (a: any) => (a.barW && a.barGap != null ? { 'data-bar-gap': String(a.barGap) } : {}) },
+        barColor: { default: null, parseHTML: (el: HTMLElement) => el.dataset.barColor || null, renderHTML: (a: any) => (a.barW && a.barColor ? { 'data-bar-color': a.barColor } : {}) },
         pstyle: {
           default: null,
           parseHTML: (el: HTMLElement) => el.getAttribute('data-ps') || null,

@@ -69,8 +69,16 @@ function pfmt(a: any, base: { indent?: any } = {}) {
   }
   if (a.keepNext) o.keepNext = true
   if (a.breakBefore) o.pageBreakBefore = true
+  if (a.barW) {
+    // Word draws the bar inside the left indent, so move the text over by the bar and its gap.
+    const gap = a.barGap ?? 12
+    o.indent = { ...(o.indent || base.indent || {}) }
+    o.indent.left = (o.indent.left || 0) + tw(a.barW + gap)
+    o.border = { left: { style: BorderStyle.SINGLE, size: Math.max(2, Math.round(a.barW * 8)), color: hex(a.barColor || ACCENT), space: Math.round(gap) } }
+  }
   return o
 }
+let ACCENT = '#2f6fed'
 
 export async function buildDOCX(doc: CADocument, layout: Layout | null, opts: { embedFonts: boolean; blockPages?: number[][] } = { embedFonts: true }): Promise<Blob> {
   await ensureAssets(doc)
@@ -295,6 +303,7 @@ export async function buildDOCX(doc: CADocument, layout: Layout | null, opts: { 
   const sections: any[] = []
   const secNodes = content.content || []
   const frames: FrameData[] = Array.isArray(content.attrs?.frames) ? content.attrs.frames : []
+  ACCENT = S.accent || ACCENT
   const placed = new Set<string>()
   const emu = (pt: number) => Math.round(pt * 12700)
   const frameCarrier = async (f: FrameData, land: boolean) => {

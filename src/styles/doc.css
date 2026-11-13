@@ -116,3 +116,5 @@
 .is-edit .ca-img .ca-imgb{cursor:grab}
 .is-edit .ca-find{background:rgba(255,213,79,.45);border-radius:1px}
 .is-edit .ca-find.cur{background:rgba(255,152,0,.75)}
+.ca-flow [data-bar]{position:relative}
+.ca-barx{position:absolute;top:100%;display:block;pointer-events:none}
