@@ -5,7 +5,7 @@ self.addEventListener('activate', e => { e.waitUntil(caches.keys().then(k => Pro
 self.addEventListener('fetch', e => {
   const r = e.request
   if (r.method !== 'GET' || new URL(r.url).origin !== location.origin) return
-  const immutable = /\/(assets|fonts)\//.test(new URL(r.url).pathname)
+  const immutable = /\/(assets|fonts|dicts)\//.test(new URL(r.url).pathname)
   if (immutable) {
     e.respondWith(caches.match(r).then(m => m || fetch(r).then(res => { if (res.ok) { const cp = res.clone(); caches.open(C).then(c => c.put(r, cp)) } return res })))
     return

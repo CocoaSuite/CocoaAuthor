@@ -254,3 +254,19 @@ aside{background:var(--panel);overflow:auto;min-height:0;min-width:0}
 .tpv figure img{width:100%;display:block}
 .card .meta .s.d{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .card.new .thumb{aspect-ratio:210/272}
+.spellp{position:absolute;right:16px;top:12px;z-index:60;width:300px;background:var(--panel2);border:1px solid var(--line);border-radius:9px;padding:10px 12px 12px;box-shadow:0 12px 32px rgba(0,0,0,.5);display:flex;flex-direction:column;gap:8px}
+.spellp .sph{display:flex;align-items:center;gap:8px}
+.spellp .sph .sp{flex:1}
+.spellp .spw{font-size:16px;font-weight:600;color:#fff}
+.spellp.done .spw{font-size:13px;font-weight:400;color:var(--mute)}
+.spellp .spc{font-size:12px;color:var(--mute);line-height:1.45;max-height:64px;overflow:hidden}
+.spellp .spc mark{background:#5a2626;color:#fff;border-radius:2px;padding:0 1px}
+.spellp .spl{display:flex;flex-direction:column;max-height:150px;overflow:auto;border:1px solid var(--line);border-radius:6px;padding:3px;background:var(--bg)}
+.spellp .spl button{background:none;border:0;justify-content:flex-start;padding:4px 8px}
+.spellp .spl button:hover{background:#363636}
+.spellp .spl .mute{padding:4px 8px}
+.spellp .spb{display:flex;flex-wrap:wrap;gap:6px}
+.spellp.done .spl,.spellp.done label.f,.spellp.done .spb:not(.sp2){display:none}
+#mid{position:relative}
+#mid .spellp{right:296px}
+#mid.no-r .spellp{right:16px}

@@ -379,6 +379,13 @@ export function inspectorPanel(ed: Editor, dv: DocView, doc: CADocument, onMeta:
     body.append(fr('Keywords', txt(m.keywords, v => set('keywords', v), 'Comma separated')))
     body.append(fr('Status', sel([['draft', 'Draft'], ['review', 'In review'], ['final', 'Final']], m.status, v => set('status', v as DocStatus))))
     body.append(h('p', { class: 'hint' }, 'These details are written into exported PDF and Word files.'))
+    const ps = settingsOf(ed)
+    body.append(sec('Language'))
+    body.append(fr('Language', sel([['en-US', 'English (US)'], ['en-GB', 'English (UK)'], ['ru', 'Russian']], ps.lang, v => setSettings(ed, { lang: v as any }))))
+    body.append(sw('Check spelling as you type', ps.spell !== false, v => setSettings(ed, { spell: v })))
+    const ign = ps.spellIgnore || []
+    if (ign.length) body.append(h('div', { class: 'row' }, h('span', { class: 'mute' }, `${ign.length} ignored word${ign.length > 1 ? 's' : ''}`), h('button', { onclick: () => { setSettings(ed, { spellIgnore: [] }); render(true) } }, 'Check them again')))
+    body.append(h('p', { class: 'hint' }, 'English words are checked against the chosen English dictionary and Russian words against the Russian one, so mixed documents work.'))
     const st = docStats(ed.state.doc)
     body.append(sec('Statistics'))
     body.append(h('div', { class: 'stat' },

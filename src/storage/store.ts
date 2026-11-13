@@ -22,9 +22,9 @@ export interface Native {
   putAsset(docId: string, id: string, data: ArrayBuffer): Promise<void>
   getAsset(docId: string, id: string): Promise<ArrayBuffer | null>
   pruneAssets(docId: string, keep: string[]): Promise<void>
-  openFile(filters: { name: string; extensions: string[] }[]): Promise<{ name: string; data: ArrayBuffer } | null>
+  openFile(filters: { name: string; extensions: string[] }[]): Promise<{ name: string; data: ArrayBuffer; files?: Record<string, ArrayBuffer> } | null>
   saveFile(name: string, data: ArrayBuffer, filters: { name: string; extensions: string[] }[]): Promise<string | null>
-  onOpenFile(cb: (f: { name: string; data: ArrayBuffer }) => void): void
+  onOpenFile(cb: (f: { name: string; data: ArrayBuffer; files?: Record<string, ArrayBuffer> }) => void): void
   setTitle(t: string): void
 }
 
@@ -179,10 +179,10 @@ export async function saveFile(name: string, data: Uint8Array | Blob, ext: strin
   return true
 }
 
-export async function openFile(exts: string[]): Promise<{ name: string; data: Uint8Array } | null> {
+export async function openFile(exts: string[]): Promise<{ name: string; data: Uint8Array; files?: Map<string, Uint8Array> } | null> {
   if (native) {
     const r = await native.openFile([{ name: 'Documents', extensions: exts.map(e => e.replace('.', '')) }])
-    return r ? { name: r.name, data: new Uint8Array(r.data) } : null
+    return r ? { name: r.name, data: new Uint8Array(r.data), files: nativeFiles(r.files) } : null
   }
   return new Promise(res => {
     const i = document.createElement('input')
@@ -193,6 +193,23 @@ export async function openFile(exts: string[]): Promise<{ name: string; data: Ui
       res(f ? { name: f.name, data: new Uint8Array(await f.arrayBuffer()) } : null)
     }
     i.oncancel = () => res(null)
+    i.click()
+  })
+}
+
+export function nativeFiles(f?: Record<string, ArrayBuffer>): Map<string, Uint8Array> | undefined {
+  if (!f) return undefined
+  return new Map(Object.entries(f).map(([k, v]) => [k, new Uint8Array(v)]))
+}
+
+export function openFiles(exts: string[]): Promise<{ name: string; data: Uint8Array }[]> {
+  return new Promise(res => {
+    const i = document.createElement('input')
+    i.type = 'file'
+    i.multiple = true
+    i.accept = exts.join(',')
+    i.onchange = async () => res(await Promise.all(Array.from(i.files || []).map(async f => ({ name: f.name, data: new Uint8Array(await f.arrayBuffer()) }))))
+    i.oncancel = () => res([])
     i.click()
   })
 }

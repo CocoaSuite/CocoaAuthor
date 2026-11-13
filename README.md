@@ -19,6 +19,8 @@ It runs in the browser (hosted on GitHub Pages) and as a desktop app for Windows
 - PDF export with embedded fonts, selectable text, working links, a clickable table of contents, bookmarks and metadata
 - Word export with native heading styles, lists, tables, images, hyperlinks, bookmarks, cross-references, footnotes, endnotes, table of contents, headers, footers and optional embedded fonts
 - Word import (text, headings, lists, tables, images, links, notes and page layout)
+- Markdown import (`.md`, or a `.zip` with its images): front matter, headings, lists, task lists, tables, footnotes, quotes, GitHub alerts as callouts, code, images with captions, links between headings and page breaks (`\pagebreak`, `\newpage` or `<!-- pagebreak -->`)
+- Spell checking for English (US and UK) and Russian, also in mixed-language documents: suggestions on right-click, a spelling panel (F7), a personal dictionary and per-document ignored words
 - Autosave, undo and redo
 
 ## Documents and storage
@@ -58,3 +60,7 @@ The installers are not code-signed. Windows and macOS will show a warning the fi
 ## Fonts
 
 CocoaAuthor bundles Inter, Source Serif 4, Lora, Playfair Display and JetBrains Mono under the SIL Open Font License. See `public/fonts/LICENSES.txt`.
+
+## Dictionaries
+
+The spelling dictionaries in `public/dicts/` come from the wooorm/dictionaries project. See `public/dicts/LICENSES.txt`.

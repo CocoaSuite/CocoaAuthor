@@ -1,6 +1,9 @@
 import type { Editor } from '@tiptap/core'
 import { NodeSelection, TextSelection } from '@tiptap/pm/state'
 import { ctxMenu, toast, type CtxItem } from './dialogs'
+import { spellAt } from '../spell/plugin'
+import { suggest, addUserWord } from '../spell/engine'
+import { getSettings } from '../layout/plugin'
 
 export interface CtxActions {
   link(): void
@@ -14,6 +17,7 @@ export interface CtxActions {
   table(): void
   image(): void
   csv(): void
+  spelling(): void
 }
 
 async function paste(ed: Editor, plain: boolean) {
@@ -32,11 +36,12 @@ async function paste(ed: Editor, plain: boolean) {
 }
 
 export function attachContextMenu(ed: Editor, root: HTMLElement, act: CtxActions) {
-  root.addEventListener('contextmenu', e => {
+  root.addEventListener('contextmenu', async e => {
     const v = ed.view
     if (!v.dom.contains(e.target as Node)) return
     e.preventDefault()
     const hit = v.posAtCoords({ left: e.clientX, top: e.clientY })
+    const miss = hit && (e.target as HTMLElement).closest('.ca-spx') ? spellAt(ed.state, hit.pos) : null
     const sel = ed.state.selection
     const atom = (e.target as HTMLElement).closest('figure.ca-img, nav.ca-toc, .ca-fn, .ca-xref, .ca-bm, .ca-pb')
     if (atom) {
@@ -57,14 +62,29 @@ export function attachContextMenu(ed: Editor, root: HTMLElement, act: CtxActions
     const inLink = ed.isActive('link')
     const inTable = ed.isActive('table')
     const c = () => ed.chain().focus()
-    const items: CtxItem[] = [
+    const items: CtxItem[] = []
+    if (miss) {
+      const list = await suggest(miss.lang, miss.word)
+      const cur = spellAt(ed.state, miss.from)
+      if (cur && cur.word === miss.word) {
+        const replace = (w: string) => { const sp = spellAt(ed.state, miss.from); if (sp) ed.chain().focus().insertContentAt({ from: sp.from, to: sp.to }, w).run() }
+        if (list.length) for (const w of list.slice(0, 6)) items.push({ label: w, run: () => replace(w) })
+        else items.push({ label: 'No suggestions', disabled: true, run: () => {} })
+        items.push(
+          { label: 'Add to dictionary', run: () => addUserWord(miss.word) },
+          { label: 'Ignore in this document', run: () => { const st = getSettings(ed.state.doc); ed.view.dispatch(ed.state.tr.setDocAttribute('settings', { ...st, spellIgnore: [...(st.spellIgnore || []), miss.word] })) } },
+          { label: 'Spelling…', run: act.spelling },
+          'sep')
+      }
+    }
+    items.push(
       { label: 'Cut', disabled: !has, run: () => document.execCommand('cut') },
       { label: 'Copy', disabled: !has, run: () => document.execCommand('copy') },
       { label: 'Paste', run: () => paste(ed, false) },
       { label: 'Paste as plain text', run: () => paste(ed, true) },
       { label: 'Select all', run: () => c().selectAll().run() },
       'sep'
-    ]
+    )
     if (nt === 'image') items.push({ label: 'Replace image…', run: () => act.replaceImage(s.from) }, 'sep')
     if (nt === 'chart') items.push({ label: 'Edit chart…', run: () => act.editChart(s.from) }, 'sep')
     if (nt && node!.isBlock) items.push({ label: 'Delete', danger: true, run: () => c().deleteSelection().run() }, 'sep')

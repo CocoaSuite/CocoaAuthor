@@ -16,6 +16,7 @@ import { attachContextMenu } from './contextmenu'
 import { csvDialog } from './csv'
 import { replaceImage } from './commands'
 import { go } from '../router'
+import { spellingPanel, editDictionary } from '../spell/panel'
 
 export interface WS { dispose(): Promise<void> }
 
@@ -124,6 +125,7 @@ export async function openWorkspace(app: HTMLElement, id: string): Promise<WS | 
     { label: 'Table of contents', icon: icon('toc'), run: ins.toc }
   ]
 
+  const spelling = () => { if (settingsOf(ed).spell === false) setSettings(ed, { spell: true }); spellingPanel(ed, mid) }
   const toggleL = () => mid.classList.toggle(innerWidth < 1000 ? 'show-l' : 'no-l')
   const toggleR = () => mid.classList.toggle(innerWidth < 1000 ? 'show-r' : 'no-r')
 
@@ -142,7 +144,11 @@ export async function openWorkspace(app: HTMLElement, id: string): Promise<WS | 
       { label: 'Redo', icon: icon('redo'), run: () => ed.chain().focus().redo().run(), disabled: !ed.can().redo() },
       'sep',
       { label: 'Select all', run: () => ed.chain().focus().selectAll().run() },
-      { label: 'Clear formatting', run: () => ed.chain().focus().unsetAllMarks().run() }
+      { label: 'Clear formatting', run: () => ed.chain().focus().unsetAllMarks().run() },
+      'sep',
+      { label: 'Spelling…  F7', run: spelling },
+      { label: settingsOf(ed).spell === false ? 'Check spelling as you type' : 'Stop checking spelling', run: () => setSettings(ed, { spell: settingsOf(ed).spell === false }) },
+      { label: 'Personal dictionary…', run: editDictionary }
     ] },
     { label: 'Insert', items: insertItems },
     { label: 'Format', items: () => [
@@ -284,7 +290,7 @@ export async function openWorkspace(app: HTMLElement, id: string): Promise<WS | 
     link: () => linkDialog(ed, dv), follow: href => follow(href), footnote: ins.footnote, xref: ins.xref, bookmark: ins.bookmark,
     paragraph: () => { showR(); insp.setTab('format'); setTimeout(() => [...insp.el.querySelectorAll('.sec')].find(s => s.textContent === 'Paragraph')?.scrollIntoView({ block: 'start' }), 30) },
     replaceImage: pos => replaceImage(ed, doc, pos), editChart: pos => csvDialog(ed, pos),
-    table: ins.table, image: ins.image, csv: ins.csv
+    table: ins.table, image: ins.image, csv: ins.csv, spelling: () => spelling()
   })
   desk.addEventListener('wheel', e => {
     if (!(e.ctrlKey || e.metaKey)) return
@@ -311,6 +317,7 @@ export async function openWorkspace(app: HTMLElement, id: string): Promise<WS | 
   })
 
   const keys = (e: KeyboardEvent) => {
+    if (e.key === 'F7') { e.preventDefault(); spelling(); return }
     const mod = e.metaKey || e.ctrlKey
     if (!mod) return
     const k = e.key.toLowerCase()

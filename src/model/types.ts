@@ -57,6 +57,9 @@ export interface PageSettings {
   background: string
   headingNumbers: boolean
   units: 'mm' | 'in'
+  lang: 'en-US' | 'en-GB' | 'ru'
+  spell: boolean
+  spellIgnore: string[]
 }
 
 export type DocStatus = 'draft' | 'review' | 'final'
@@ -138,6 +141,11 @@ export function defaultStyles(): StyleSet {
 
 const hf = (left = '', center = '', right = ''): HF => ({ left, center, right })
 
+export function defaultLang(): PageSettings['lang'] {
+  const l = (typeof navigator !== 'undefined' && navigator.language || 'en-US').toLowerCase()
+  return l.startsWith('ru') ? 'ru' : /^en-(gb|ie|au|nz|za|in)/.test(l) ? 'en-GB' : 'en-US'
+}
+
 export function defaultSettings(): PageSettings {
   return {
     size: 'A4', width: 595.28, height: 841.89, landscape: false,
@@ -153,7 +161,10 @@ export function defaultSettings(): PageSettings {
     numberFormat: 'decimal', numberStart: 1,
     background: '#ffffff',
     headingNumbers: false,
-    units: 'mm'
+    units: 'mm',
+    lang: defaultLang(),
+    spell: true,
+    spellIgnore: []
   }
 }
 

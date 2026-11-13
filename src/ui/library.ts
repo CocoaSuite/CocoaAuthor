@@ -1,4 +1,4 @@
-import { store, native, openFile, unpackDoc, saveFile, safeName, packDoc } from '../storage/store'
+import { store, native, openFile, openFiles, unpackDoc, saveFile, safeName, packDoc } from '../storage/store'
 import { newDoc } from '../model/doc'
 import { themeStyles } from '../model/themes'
 import { thumbFor, thumbForDoc } from './thumbs'
@@ -17,14 +17,37 @@ export async function createFromTemplate(t: Template | null) {
   go('/doc/' + d.meta.id)
 }
 
+export const OPEN_EXTS = ['.cocoaauthor', '.docx', '.md', '.markdown', '.zip']
+
 export async function importAny() {
-  const f = await openFile(['.cocoaauthor', '.docx'])
-  if (f) await importData(f.name, f.data)
+  if (native) {
+    const f = await openFile(OPEN_EXTS)
+    if (f) await importData(f.name, f.data, f.files)
+    return
+  }
+  const fs = await openFiles([...OPEN_EXTS, '.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg'])
+  if (fs.length) await importPicked(fs)
 }
 
-export async function importData(name: string, data: Uint8Array) {
+/** Several files picked or dropped together: the document plus, for Markdown, the images it uses. */
+export async function importPicked(fs: { name: string; data: Uint8Array }[]) {
+  const main = fs.find(f => /\.(cocoaauthor|docx|md|markdown|zip)$/i.test(f.name))
+  if (!main) { toast('Choose a .cocoaauthor, .docx, Markdown or .zip file.'); return }
+  const files = new Map<string, Uint8Array>()
+  for (const f of fs) if (f !== main) files.set(f.name, f.data)
+  await importData(main.name, main.data, files)
+}
+
+export async function importData(name: string, data: Uint8Array, files?: Map<string, Uint8Array>) {
   try {
-    if (/\.docx$/i.test(name)) {
+    if (/\.(md|markdown|zip)$/i.test(name)) {
+      toast('Importing Markdown…', 8000)
+      const { importMarkdownBundle } = await import('../import/markdown')
+      const d = await importMarkdownBundle(name, data, files)
+      const miss = (d as any)._missing
+      toast(miss ? `Imported ${d.meta.title}. ${miss} image${miss > 1 ? 's' : ''} could not be found.` : 'Imported ' + d.meta.title, miss ? 6000 : 3000)
+      go('/doc/' + d.meta.id)
+    } else if (/\.docx$/i.test(name)) {
       toast('Importing Word document…', 8000)
       const { importDocx } = await import('../import/docx')
       const d = await importDocx(data, name)
@@ -57,7 +80,8 @@ export async function renderLibrary(app: HTMLElement, view: 'recent' | 'all' | '
       { label: 'New from template…', icon: icon('template'), run: () => go('/templates') },
       'sep',
       { label: 'Open CocoaAuthor file…', icon: icon('file'), run: importAny },
-      { label: 'Import Word document…', icon: icon('word'), run: importAny }
+      { label: 'Import Word document…', icon: icon('word'), run: importAny },
+      { label: 'Import Markdown…', icon: icon('file'), run: importAny }
     ] }]),
     h('span', { class: 'sp' }),
     h('button', { onclick: importAny }, icon('upload'), h('span', {}, 'Open or import')),

@@ -21,10 +21,40 @@ async function writeAtomic(file, data) {
   await fsp.rename(tmp, file)
 }
 
+const ab = b => b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength)
+const IMG_EXT = /\.(png|jpe?g|gif|webp|svg|bmp|avif)$/i
+
+// Markdown refers to its images by relative path; read the ones it uses so the import can embed them.
+async function markdownImages(file, text) {
+  const dir = path.dirname(file)
+  const refs = new Set()
+  for (const m of text.matchAll(/!\[[^\]]*\]\(\s*<?([^)\s>]+)>?/g)) refs.add(m[1])
+  for (const m of text.matchAll(/^\s*\[[^\]]+\]:\s*<?(\S+?)>?(?:\s|$)/gm)) refs.add(m[1])
+  for (const m of text.matchAll(/<img[^>]+src=["']([^"']+)["']/gi)) refs.add(m[1])
+  const out = {}
+  let total = 0
+  for (const r of refs) {
+    if (/^[a-z][\w+.-]*:/i.test(r) && !/^file:/i.test(r)) continue
+    let rel = r.split(/[?#]/)[0].replace(/^file:\/\//i, '')
+    try { rel = decodeURIComponent(rel) } catch {}
+    if (!IMG_EXT.test(rel)) continue
+    const abs = path.isAbsolute(rel) ? rel : path.resolve(dir, rel)
+    try {
+      const st = await fsp.stat(abs)
+      if (!st.isFile() || st.size > 50e6 || total + st.size > 400e6) continue
+      total += st.size
+      out[rel] = ab(await fsp.readFile(abs))
+    } catch {}
+  }
+  return out
+}
+
 async function readOpened(file) {
   try {
     const data = await fsp.readFile(file)
-    return { name: path.basename(file), data: data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength) }
+    const f = { name: path.basename(file), data: ab(data) }
+    if (/\.(md|markdown)$/i.test(file)) f.files = await markdownImages(file, data.toString('utf8'))
+    return f
   } catch { return null }
 }
 
@@ -36,7 +66,7 @@ async function deliver(file) {
 }
 
 function filesFromArgv(argv) {
-  return argv.slice(1).filter(a => /\.(cocoaauthor|docx)$/i.test(a) && fs.existsSync(a))
+  return argv.slice(1).filter(a => /\.(cocoaauthor|docx|md|markdown)$/i.test(a) && fs.existsSync(a))
 }
 
 function createWindow() {

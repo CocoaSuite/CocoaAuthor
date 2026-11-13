@@ -1,3 +1,4 @@
+import { spellPlugin } from '../spell/plugin'
 import { Editor } from '@tiptap/core'
 import { extensions } from './extensions'
 import { paginate, renderPages, type Layout, type DocMetaLite } from '../layout/paginate'
@@ -57,7 +58,7 @@ export class DocView {
       content,
       editable: mode === 'edit',
       injectCSS: true,
-      editorProps: { attributes: { spellcheck: mode === 'edit' ? 'true' : 'false' } }
+      editorProps: { attributes: { spellcheck: 'false' } }
     })
     const over = document.createElement('div')
     over.className = 'ca-over'
@@ -71,6 +72,7 @@ export class DocView {
       if (transaction.docChanged) this.schedule()
     })
     if (mode === 'edit') {
+      this.editor.registerPlugin(spellPlugin())
       document.fonts.addEventListener('loadingdone', this.onFonts)
       this.schedule(0)
       loadUsedFonts(this.root).finally(() => { if (!this.destroyed) this.schedule(0) })
