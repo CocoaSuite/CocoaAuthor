@@ -18,7 +18,8 @@ import { replaceImage } from './commands'
 import { go } from '../router'
 import { customs } from '../model/styles'
 import { spellingPanel, editDictionary } from '../spell/panel'
-import { cropDialog } from './cropdialog'
+import { cropDialog, cropDialogFor } from './cropdialog'
+import { insertFloatingImage, insertTextBox } from './framecmds'
 
 export interface WS { dispose(): Promise<void> }
 
@@ -109,6 +110,8 @@ export async function openWorkspace(app: HTMLElement, id: string): Promise<WS | 
   }
   const insertItems = () => [
     { label: 'Image…', icon: icon('image'), run: ins.image },
+    { label: 'Floating image…', icon: icon('image'), run: () => insertFloatingImage(ed, doc, dv) },
+    { label: 'Text box', icon: icon('callout'), run: () => insertTextBox(ed, dv) },
     { label: 'Table…', icon: icon('table'), run: ins.table },
     { label: 'Table or chart from CSV…', icon: icon('chart'), run: ins.csv },
     { label: 'Link…', icon: icon('link'), run: ins.link },
@@ -324,6 +327,23 @@ export async function openWorkspace(app: HTMLElement, id: string): Promise<WS | 
     desk.scrollTop = fy * q - (e.clientY - r.top)
   }, { passive: false })
   insp.el.addEventListener('ca-follow', (e: any) => follow(e.detail))
+  dv.root.addEventListener('ca-frame-select', (e: any) => { if (e.detail) showR(); insp.render(true) })
+  dv.root.addEventListener('ca-frame-crop', (e: any) => {
+    const f = dv.objects.get(e.detail)
+    if (!f || f.kind !== 'image') return
+    cropDialogFor({ ...f, w: f.iw, h: f.ih }, patch => {
+      const cur = dv.objects.get(f.id)
+      if (!cur) return
+      const cr = patch.cropRect
+      const h = cr ? cur.w * (cr.h * (cur.ih || 1)) / (cr.w * (cur.iw || 1)) : cur.cropRect ? cur.w * (cur.ih || 1) / (cur.iw || 1) : cur.h
+      dv.objects.update(f.id, { cropRect: cr || null, zoom: null, cx: null, cy: null, fit: cr ? null : cur.fit, h })
+    })
+  })
+  ed.view.dom.addEventListener('pointerdown', e => {
+    if (!e.altKey) return
+    const id = dv.objects.hit(e.clientX, e.clientY)
+    if (id) { e.preventDefault(); e.stopPropagation(); (document.activeElement as HTMLElement | null)?.blur(); dv.objects.select(id) }
+  }, true)
   dv.root.addEventListener('dblclick', e => {
     const fig = (e.target as HTMLElement).closest('figure.ca-img:not(.ca-chartv)')
     if (!fig) return

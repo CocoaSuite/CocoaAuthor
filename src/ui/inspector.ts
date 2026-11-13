@@ -2,7 +2,8 @@ import type { Editor } from '@tiptap/core'
 import { h, ptToUnit, unitToPt, relTime, uid } from '../util'
 import { icon } from './icons'
 import { FONTS, PAGE_SIZES, STYLE_KEYS, STYLE_NAMES, OT_FEATURES, defaultStyles, type CADocument, type HF, type StyleKey, type DocStatus, type CustomStyle, type TextStyleDef } from '../model/types'
-import { customs, findCustom, isBuiltin, resolvePara, resolveChar } from '../model/styles'
+import { customs, findCustom, isBuiltin, resolvePara, resolveChar, rootKey } from '../model/styles'
+import { floatImage, unfloatImage } from './framecmds'
 import { promptBox, confirmBox } from './dialogs'
 import { settingsOf, stylesOf, setSettings, setStyles, currentBlockStyle, setBlockStyle, setCharStyle, currentCharStyle, sectionAt, setSectionAttr, removeSectionBreak, selectedNode, findParent, replaceImage, allTargets, docStats, type BlockStyle } from './commands'
 import { xrefText } from '../layout/plugin'
@@ -79,7 +80,64 @@ export function inspectorPanel(ed: Editor, dv: DocView, doc: CADocument, onMeta:
     body.scrollTop = st
   }
 
+  const frameSec = (id: string) => {
+    const L = dv.objects
+    const f = L.get(id)
+    if (!f) return
+    const set = (patch: Record<string, any>) => L.update(id, patch)
+    const u = settingsOf(ed).units
+    const unumF = (label: string, v: number, on: (pt: number) => void) => {
+      const i = h('input', { type: 'number', step: u === 'mm' ? '1' : '0.05', value: String(Math.round(ptToUnit(v, u) * 100) / 100) }) as HTMLInputElement
+      i.addEventListener('change', () => { const n = parseFloat(i.value); if (!isNaN(n)) on(unitToPt(n, u)) })
+      return h('label', {}, `${label} (${u})`, i)
+    }
+    body.append(sec(f.kind === 'image' ? 'Floating image' : 'Text box'))
+    body.append(fr('Text', seg([['around', 'Wraps'], ['front', 'In front'], ['behind', 'Behind']], f.wrap, v => set({ wrap: v }))))
+    body.append(h('div', { class: 'g2' }, unumF('X', f.x, v => set({ x: v })), unumF('Y', f.y, v => set({ y: v }))))
+    body.append(h('div', { class: 'g2' },
+      unumF('Width', f.w, v => set(f.kind === 'image' ? { w: Math.max(4, v), h: Math.max(4, v) * f.h / f.w } : { w: Math.max(4, v) })),
+      unumF('Height', f.h, v => set(f.kind === 'image' && f.cropRect ? { h: Math.max(4, v), w: Math.max(4, v) * f.w / f.h } : { h: Math.max(4, v) }))))
+    if (f.wrap === 'around') body.append(h('div', { class: 'g2' }, unumF('Text gap', f.gap ?? 8, v => set({ gap: Math.max(0, v) }))))
+    body.append(h('div', { class: 'hint' }, `Page ${(f.page || 0) + 1}. Drag to move, use the handles to resize, arrow keys to nudge. Alt+click picks a frame that sits behind text.`))
+    if (f.kind === 'image') {
+      body.append(fr('Fit', seg([['fill', 'Fill'], ['fit', 'Fit'], ['stretch', 'Stretch']], f.fit || 'fill', v => set({ fit: v === 'fill' ? null : v, cropRect: null }))))
+      if (!f.cropRect && (f.fit || 'fill') === 'fill') {
+        const rng = (k: 'zoom' | 'cx' | 'cy', min: number, max: number, val: number, conv: (v: number) => any) => {
+          const i = h('input', { type: 'range', min: String(min), max: String(max), step: '1', value: String(val) }) as HTMLInputElement
+          i.addEventListener('change', () => set({ [k]: conv(+i.value) }))
+          return i
+        }
+        body.append(fr('Zoom', rng('zoom', 100, 400, Math.round((f.zoom || 1) * 100), v => (v === 100 ? null : v / 100))))
+        body.append(fr('Horizontal', rng('cx', 0, 100, Math.round((f.cx ?? 0.5) * 100), v => (v === 50 ? null : v / 100))))
+        body.append(fr('Vertical', rng('cy', 0, 100, Math.round((f.cy ?? 0.5) * 100), v => (v === 50 ? null : v / 100))))
+      }
+      body.append(fr('Alt text', txt(f.alt || '', v => set({ alt: v }), 'Describe the image')))
+      body.append(h('div', { class: 'g2' },
+        h('button', { onclick: () => dv.root.dispatchEvent(new CustomEvent('ca-frame-crop', { detail: id })) }, 'Crop…'),
+        h('button', { onclick: () => unfloatImage(ed, dv, id) }, 'Put in text')))
+    } else {
+      const bed = L.editorOf(id)
+      const pst = [['body', 'Body text'], ['title', 'Title'], ['subtitle', 'Subtitle'], ['h1', 'Heading 1'], ['h2', 'Heading 2'], ['h3', 'Heading 3'], ['h4', 'Heading 4'], ['caption', 'Caption'], ...customs(stylesOf(ed)).filter(c => c.type === 'para').map(c => [c.id, c.name])] as Opt[]
+      if (bed) body.append(fr('Paragraph style', sel(pst, '', v => {
+        const S = stylesOf(ed)
+        const custom = findCustom(S, v)
+        const root = custom ? rootKey(S, v) : v
+        const c = bed.chain().focus()
+        if (/^h[1-4]$/.test(root)) c.setNode('heading', { level: +root[1] }); else c.setNode('paragraph', { kind: ['title', 'subtitle', 'caption'].includes(root) ? root : 'body' })
+        c.updateAttributes(/^h[1-4]$/.test(root) ? 'heading' : 'paragraph', { pstyle: custom ? v : null }).run()
+      })))
+      body.append(fr('Align text', seg([['top', 'Top'], ['middle', 'Middle'], ['bottom', 'Bottom']], f.valign || 'top', v => set({ valign: v }))))
+      body.append(h('div', { class: 'g2' }, unumF('Padding', f.pad ?? 0, v => set({ pad: Math.max(0, v) })), h('label', {}, 'Border (pt)', num(f.border || 0, v => set({ border: Math.max(0, v) }), { min: 0, step: 0.25 }))))
+      body.append(fr('Fill', h('div', { class: 'fr' }, color(f.fill || '#ffffff', v => set({ fill: v })), h('button', { onclick: () => set({ fill: null }) }, 'None'))))
+      if (f.border) body.append(fr('Border colour', color(f.borderColor || '#1d1d1f', v => set({ borderColor: v }))))
+      body.append(h('p', { class: 'hint' }, 'Click into the box to type. Bold, italic and other shortcuts work inside it.'))
+    }
+    body.append(h('div', { class: 'g2' }, h('button', { onclick: () => L.order(id, true) }, 'Bring to front'), h('button', { onclick: () => L.order(id, false) }, 'Send to back')))
+    body.append(h('button', { class: 'danger', onclick: () => L.remove(id) }, icon('trash'), f.kind === 'image' ? 'Delete image' : 'Delete text box'))
+  }
+
   const formatTab = () => {
+    if (dv.objects.selected && dv.objects.get(dv.objects.selected)) return frameSec(dv.objects.selected)
     const sn = selectedNode(ed)
     const nt = sn?.node.type.name
     if (nt === 'image') return imageSec(sn!.pos)
@@ -255,6 +313,7 @@ export function inspectorPanel(ed: Editor, dv: DocView, doc: CADocument, onMeta:
     }
     body.append(fr('Alt text', txt(n.attrs.alt, v => set('alt', v), 'Describe the image')))
     body.append(h('div', { class: 'hint' }, `${n.attrs.w} × ${n.attrs.h} px`))
+    body.append(h('button', { onclick: () => floatImage(ed, dv, pos) }, 'Float on page'))
     const next = ed.state.doc.resolve(pos + n.nodeSize).nodeAfter
     const hasCap = next?.type.name === 'paragraph' && next.attrs.kind === 'caption'
     body.append(h('div', { class: 'g2' },

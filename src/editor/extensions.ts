@@ -25,7 +25,7 @@ const idAttr = {
 export const CADoc = Document.extend({
   content: 'section+',
   addAttributes() {
-    return { settings: { default: null, rendered: false }, styles: { default: null, rendered: false } }
+    return { settings: { default: null, rendered: false }, styles: { default: null, rendered: false }, frames: { default: null, rendered: false } }
   }
 })
 
@@ -464,5 +464,21 @@ export function extensions() {
     TextAlign.configure({ types: ['heading', 'paragraph'] }),
     Table.configure({ resizable: false, cellMinWidth: 30 }), TableRow, HeadCell, Cell,
     ParaFormat, Spacing, Ids, LayoutExt
+  ]
+}
+
+/** The editor used inside text boxes: paragraphs, headings, lists and text formatting, nothing page-level. */
+export function boxExtensions() {
+  return [
+    StarterKit.configure({
+      paragraph: false, heading: false, code: false, codeBlock: false, link: false, trailingNode: false, horizontalRule: false, blockquote: false,
+      bulletList: { keepMarks: true }, orderedList: { keepMarks: true }
+    } as any),
+    Para, Head, CharStyle,
+    Link.configure({ openOnClick: false, autolink: true, protocols: ['mailto', 'tel'], HTMLAttributes: { target: null, rel: null, class: null } }),
+    TextStyle, Color, FontFamily, FontSize,
+    Highlight.configure({ multicolor: true }),
+    TextAlign.configure({ types: ['heading', 'paragraph'] }),
+    ParaFormat, Spacing
   ]
 }

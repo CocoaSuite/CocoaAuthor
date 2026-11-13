@@ -210,7 +210,7 @@ export async function exportDOCX(doc: CADocument, ed: Editor | null) {
     r = await renderForExport(doc)
     pb.set(0.5, 'Writing document…')
     const { buildDOCX } = await import('../export/docx')
-    const blob = await buildDOCX(doc, r.dv.layout, { embedFonts: emb.checked })
+    const blob = await buildDOCX(doc, r.dv.layout, { embedFonts: emb.checked, blockPages: blockPages(r.dv) })
     pb.close()
     if (await saveFile(safeName(doc.meta.title) + '.docx', blob, 'docx')) toast('Word document exported')
   } catch (e: any) {
@@ -303,4 +303,25 @@ export async function preview(doc: CADocument, ed: Editor | null) {
       if (t) go((t.getBoundingClientRect().top - root.getBoundingClientRect().top) / s())
     } else if (href) window.open(href, '_blank', 'noopener')
   })
+}
+
+/** The page each top-level block starts on, per section, so floating frames can be anchored on their page in Word. */
+function blockPages(dv: any): number[][] {
+  const L = dv.layout
+  if (!L) return []
+  const v = dv.editor.view
+  const rr = dv.root.getBoundingClientRect(), sc = dv.scale
+  const out: number[][] = []
+  v.state.doc.forEach((sec: any, off: number) => {
+    const row: number[] = []
+    sec.forEach((_n: any, o: number) => {
+      const el = v.nodeDOM(off + 1 + o) as HTMLElement | null
+      const y = el?.getBoundingClientRect ? (el.getBoundingClientRect().top - rr.top) / sc : 0
+      let p = 0
+      for (const q of L.pages) if (q.top <= y + 1) p = q.i
+      row.push(p)
+    })
+    out.push(row)
+  })
+  return out
 }

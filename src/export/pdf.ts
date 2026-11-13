@@ -57,6 +57,7 @@ export async function buildPDF(dv: DocView, doc: CADocument, progress: PDFProgre
   const pages = L.pages
   const content: Item[][] = pages.map(() => [])
   const over: Item[][] = pages.map(() => [])
+  const back: Item[][] = pages.map(() => [])
   const anchors = new Map<string, { page: number; y: number }>()
   const links: { page: number; x0: number; y0: number; x1: number; y1: number; href: string }[] = []
   const pending: Promise<any>[] = []
@@ -68,7 +69,10 @@ export async function buildPDF(dv: DocView, doc: CADocument, progress: PDFProgre
   }
   const contentBottom = (p: PageBox) => p.top + p.h - p.m.bottom
 
+  // Targets: 'c' flows with the text, n >= 0 sits over page n, n < 0 sits behind page -n-1.
+  const pgOf = (t: 'c' | number, y: number) => (typeof t === 'number' ? (t < 0 ? -t - 1 : t) : pageOfY(y))
   const place = (target: 'c' | number, it: Item) => {
+    if (typeof target === 'number' && target < 0) { back[-target - 1]?.push(it); return }
     if (target === 'c') {
       const a = pageOfY(it.y0), b = pageOfY(Math.max(it.y0, it.y1 - 0.01))
       for (let i = a; i <= b; i++) {
@@ -96,6 +100,19 @@ export async function buildPDF(dv: DocView, doc: CADocument, progress: PDFProgre
       const s = getComputedStyle(e)
       if (s.display === 'none' || s.visibility === 'hidden') continue
       let tg = target
+      if (e.classList.contains('ca-obj')) {
+        const pi = +e.dataset.page!
+        if (!(pi >= 0 && pi < pages.length)) continue
+        const t2 = e.classList.contains('w-behind') ? -(pi + 1) : pi
+        const r = e.getBoundingClientRect()
+        const bx = X(r.left), by = Y(r.top), bw = r.width / sc, bh = r.height / sc
+        // Clip the frame's contents to its box, as the editor does.
+        place(t2, { y0: by, y1: by + bh, draw: (pg, ox, oy, ph) => pg.pushOperators(pushGraphicsState(), rectangle(bx - ox, ph - (by + bh - oy), bw, bh), clip(), endPath()) })
+        box(e, s, t2)
+        walk(e, t2)
+        place(t2, { y0: by, y1: by + bh, draw: pg => pg.pushOperators(popGraphicsState()) })
+        continue
+      }
       if (e.classList.contains('ca-frame')) {
         tg = +e.dataset.page!
         walk(e, tg)
@@ -105,14 +122,14 @@ export async function buildPDF(dv: DocView, doc: CADocument, progress: PDFProgre
       if (e.id) {
         const r = e.getBoundingClientRect()
         const y = Y(r.top)
-        anchors.set(e.id, { page: typeof tg === 'number' ? tg : pageOfY(y), y })
+        anchors.set(e.id, { page: pgOf(tg, y), y })
       }
       if (e.tagName === 'A') {
         const href = e.getAttribute('href') || ''
         if (href && href !== '#') for (const r of Array.from(e.getClientRects())) {
           if (r.width < 0.5) continue
           const y0 = Y(r.top), y1 = Y(r.bottom)
-          links.push({ page: typeof tg === 'number' ? tg : pageOfY((y0 + y1) / 2), x0: X(r.left), x1: X(r.right), y0, y1, href })
+          links.push({ page: pgOf(tg, (y0 + y1) / 2), x0: X(r.left), x1: X(r.right), y0, y1, href })
         }
       }
       if (e.tagName === 'IMG') { image(e as HTMLImageElement, tg); continue }
@@ -338,6 +355,7 @@ export async function buildPDF(dv: DocView, doc: CADocument, progress: PDFProgre
     if (bg && !(bg.r === 1 && bg.g === 1 && bg.b === 1)) pg.drawRectangle({ x: 0, y: 0, width: p.w, height: p.h, ...fill(bg) })
     const ox = p.left, oy = p.top
     const cy = p.cTop, cb = contentBottom(p)
+    for (const it of back[i]) it.draw(pg, ox, oy, p.h)
     pg.pushOperators(pushGraphicsState(), rectangle(p.m.left, p.h - (cb - oy), p.w - p.m.left - p.m.right, cb - cy), clip(), endPath())
     for (const it of content[i]) it.draw(pg, ox, oy, p.h)
     pg.pushOperators(popGraphicsState())

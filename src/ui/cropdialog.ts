@@ -10,7 +10,15 @@ const RATIOS: [string, string][] = [['', 'Free'], ['orig', 'Original'], ['1:1', 
 export function cropDialog(ed: Editor, pos: number) {
   const n = ed.state.doc.nodeAt(pos)
   if (!n || n.type.name !== 'image') return
-  const a = n.attrs as any
+  cropDialogFor(n.attrs, patch => {
+    const cur = ed.state.doc.nodeAt(pos)
+    if (!cur || cur.type.name !== 'image') return
+    ed.view.dispatch(ed.state.tr.setNodeMarkup(pos, undefined, { ...cur.attrs, ...patch }))
+  })
+}
+
+/** Crop any image described by image attributes (w and h are its natural size); apply receives the changes. */
+export function cropDialogFor(a: any, onApply: (patch: Record<string, any>) => void) {
   const nw = a.w || 800, nh = a.h || 600
   const src = String(a.src).startsWith('asset:') ? assets.url(String(a.src).slice(6)) : a.src
 
@@ -90,10 +98,8 @@ export function cropDialog(ed: Editor, pos: number) {
   })
 
   const apply = (rect: CropRect | null) => {
-    const cur = ed.state.doc.nodeAt(pos)
-    if (!cur || cur.type.name !== 'image') return
     const full = rect && rect.x < 0.001 && rect.y < 0.001 && rect.w > 0.999 && rect.h > 0.999
-    ed.view.dispatch(ed.state.tr.setNodeMarkup(pos, undefined, { ...cur.attrs, cropRect: full ? null : rect, crop: null, zoom: null, cx: null, cy: null, fit: full || !rect ? cur.attrs.fit : null }))
+    onApply({ cropRect: full ? null : rect, crop: null, zoom: null, cx: null, cy: null, ...(full || !rect ? {} : { fit: null }) })
     m.close()
   }
 

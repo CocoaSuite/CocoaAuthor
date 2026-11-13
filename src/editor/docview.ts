@@ -1,4 +1,5 @@
 import { spellPlugin } from '../spell/plugin'
+import { FrameLayer, wrapPlugin, applyWraps, sameWraps, wrapKey, framesOf } from '../layout/frames'
 import { Editor } from '@tiptap/core'
 import { extensions } from './extensions'
 import { paginate, renderPages, type Layout, type DocMetaLite } from '../layout/paginate'
@@ -33,6 +34,7 @@ export class DocView {
   zwrap: HTMLElement | null = null
   layout: Layout | null = null
   zoom = 1
+  objects!: FrameLayer
   private timer: any = 0
   private busy = false
   private lastStyles: any = null
@@ -66,6 +68,8 @@ export class DocView {
         }
       }
     })
+    this.editor.registerPlugin(wrapPlugin())
+    this.objects = new FrameLayer(() => this.editor.view, this.root, mode, () => this.scale)
     const over = document.createElement('div')
     over.className = 'ca-over'
     const meas = document.createElement('div')
@@ -107,7 +111,18 @@ export class DocView {
     try {
       this.root.classList.toggle('is-cont', getSettings(v.state.doc).layout === 'continuous')
       if (this.zwrap) this.root.style.transform = `scale(${this.scale})`
-      this.layout = paginate(v, this.root, { scale: this.scale, gap: GAP, mode: this.mode, meta: this.meta() })
+      const opts = { scale: this.scale, gap: GAP, mode: this.mode, meta: this.meta() }
+      this.layout = paginate(v, this.root, opts)
+      // Text wrap around frames changes the flow, so repeat until the wrap settles.
+      if (framesOf(v.state.doc).length || wrapKey.getState(v.state)?.wraps.length) {
+        for (let k = 0; k < 3; k++) {
+          const before = wrapKey.getState(v.state)?.wraps || []
+          const after = applyWraps(v, this.root, this.scale, this.layout)
+          if (sameWraps(before, after)) break
+          this.layout = paginate(v, this.root, opts)
+        }
+      }
+      this.objects.render(this.layout)
       this.applyZoom()
     } finally {
       this.busy = false
@@ -126,6 +141,7 @@ export class DocView {
     if (!this.zwrap || !this.layout) return
     const s = this.scale
     this.root.style.transform = `scale(${s})`
+    this.root.style.setProperty('--inv', String(1 / s))
     this.zwrap.style.width = this.layout.flowW * s + 'px'
     this.zwrap.style.height = this.layout.flowH * s + 'px'
   }
@@ -190,6 +206,7 @@ export class DocView {
     this.destroyed = true
     clearTimeout(this.timer)
     document.fonts.removeEventListener('loadingdone', this.onFonts)
+    this.objects?.destroy()
     this.editor.destroy()
     ;(this.zwrap || this.root).remove()
   }

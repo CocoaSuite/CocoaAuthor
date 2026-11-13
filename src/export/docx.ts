@@ -3,9 +3,9 @@ import { frameRatio, placeImage, isPlain, type ImgAttrs } from '../editor/imageg
 import {
   Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType, Table, TableRow, TableCell, WidthType, BorderStyle, ShadingType,
   ExternalHyperlink, InternalHyperlink, Bookmark, ImageRun, PageBreak, PageReference, SimpleField, TableOfContents, FootnoteReferenceRun,
-  EndnoteReferenceRun, Header, Footer, PageNumber, TabStopType, NumberFormat, LevelFormat, PageOrientation, Tab, VerticalAlignTable, TableLayoutType
+  EndnoteReferenceRun, Header, Footer, Textbox, HorizontalPositionRelativeFrom, VerticalPositionRelativeFrom, TextWrappingType, TextWrappingSide, PageNumber, TabStopType, NumberFormat, LevelFormat, PageOrientation, Tab, VerticalAlignTable, TableLayoutType
 } from 'docx'
-import type { CADocument, PageSettings, StyleSet, TextStyleDef, HF } from '../model/types'
+import type { CADocument, PageSettings, StyleSet, TextStyleDef, HF, FrameData } from '../model/types'
 import { defaultStyles, pageDims, fontKey, FONTS } from '../model/types'
 import { getSettings, collectTargets, xrefText, textOf } from '../layout/plugin'
 import { fontBytes, fontFile } from '../layout/fonts'
@@ -72,7 +72,7 @@ function pfmt(a: any, base: { indent?: any } = {}) {
   return o
 }
 
-export async function buildDOCX(doc: CADocument, layout: Layout | null, opts: { embedFonts: boolean } = { embedFonts: true }): Promise<Blob> {
+export async function buildDOCX(doc: CADocument, layout: Layout | null, opts: { embedFonts: boolean; blockPages?: number[][] } = { embedFonts: true }): Promise<Blob> {
   await ensureAssets(doc)
   const content = doc.content
   const pmDoc = schema().nodeFromJSON(content)
@@ -294,10 +294,54 @@ export async function buildDOCX(doc: CADocument, layout: Layout | null, opts: { 
 
   const sections: any[] = []
   const secNodes = content.content || []
+  const frames: FrameData[] = Array.isArray(content.attrs?.frames) ? content.attrs.frames : []
+  const placed = new Set<string>()
+  const emu = (pt: number) => Math.round(pt * 12700)
+  const frameCarrier = async (f: FrameData, land: boolean) => {
+    if (f.kind === 'image') {
+      const id = String(f.src || '').replace('asset:', '')
+      const blob = assets.blob(id)
+      if (!blob) return new Paragraph('')
+      const { data, type } = await imageData(blob, { w: f.iw || 800, h: f.ih || 600, crop: `${f.w}:${f.h}`, fit: f.fit, cx: f.cx, cy: f.cy, zoom: f.zoom, cropRect: f.cropRect } as any)
+      const g = emu(f.gap ?? 8)
+      return new Paragraph({
+        spacing: { before: 0, after: 0, line: 20, lineRule: 'exact' as any },
+        children: [new ImageRun({
+          type, data, transformation: { width: Math.round(f.w * 96 / 72), height: Math.round(f.h * 96 / 72) },
+          altText: { name: f.alt || 'Image', description: f.alt || '', title: f.alt || '' },
+          floating: {
+            horizontalPosition: { relative: HorizontalPositionRelativeFrom.PAGE, offset: emu(f.x) },
+            verticalPosition: { relative: VerticalPositionRelativeFrom.PAGE, offset: emu(f.y) },
+            wrap: f.wrap === 'around' ? { type: TextWrappingType.SQUARE, side: TextWrappingSide.BOTH_SIDES, margins: { top: g, bottom: g, left: g, right: g } } : { type: TextWrappingType.NONE },
+            behindDocument: f.wrap === 'behind', allowOverlap: true
+          }
+        } as any)]
+      })
+    }
+    const inner = await blocks(f.content?.content || [{ type: 'paragraph' }], { land, cell: true })
+    return new Textbox({
+      style: {
+        position: 'absolute', positionHorizontalRelative: 'page', positionVerticalRelative: 'page',
+        marginLeft: `${f.x}pt` as any, marginTop: `${f.y}pt` as any, width: `${f.w}pt` as any, height: `${f.h}pt` as any,
+        wrapStyle: f.wrap === 'around' ? 'square' : 'none',
+        wrapDistanceLeft: f.gap ?? 8, wrapDistanceRight: f.gap ?? 8, wrapDistanceTop: f.gap ?? 8, wrapDistanceBottom: f.gap ?? 8
+      },
+      children: inner.filter((x: any) => x instanceof Paragraph || x instanceof Table)
+    } as any)
+  }
   for (let i = 0; i < secNodes.length; i++) {
     const sn = secNodes[i]
     const land = sn.attrs?.landscape ?? s.landscape
-    const kids = await blocks(sn.content, { land })
+    // Floating frames ride on a near-invisible paragraph on their page, positioned from the page corner.
+    const kids: any[] = []
+    const bp = opts.blockPages?.[i] || []
+    const nodes = sn.content || []
+    for (let j = 0; j < nodes.length; j++) {
+      const pgI = bp[j]
+      if (pgI != null) for (const f of frames.filter(x => !placed.has(x.id) && x.page <= pgI)) { placed.add(f.id); kids.push(await frameCarrier(f, land)) }
+      kids.push(...(await blocks([nodes[j]], { land })))
+    }
+    if (i === secNodes.length - 1) for (const f of frames.filter(x => !placed.has(x.id))) { placed.add(f.id); kids.push(await frameCarrier(f, land)) }
     const [pw, ph] = pageDims(s, false)
     const mk = (t: HF, on: boolean, ctor: any) => new ctor({ children: on && hasHF(t) ? [hfPara(t, land)] : [new Paragraph('')] })
     const headers: any = { default: mk(s.header, s.headerOn, Header) }

@@ -1,5 +1,34 @@
 export type Align = 'left' | 'center' | 'right' | 'justify'
 
+/** An image or text box placed freely on a page. Positions and sizes are in points from the page's top-left. */
+export interface FrameData {
+  id: string
+  kind: 'image' | 'text'
+  page: number
+  x: number
+  y: number
+  w: number
+  h: number
+  /** around: text wraps; front: over the text; behind: under the text */
+  wrap: 'around' | 'front' | 'behind'
+  gap: number
+  src?: string
+  iw?: number
+  ih?: number
+  fit?: 'fill' | 'fit' | 'stretch' | null
+  cx?: number | null
+  cy?: number | null
+  zoom?: number | null
+  cropRect?: { x: number; y: number; w: number; h: number } | null
+  alt?: string
+  content?: any
+  pad?: number
+  fill?: string | null
+  border?: number
+  borderColor?: string
+  valign?: 'top' | 'middle' | 'bottom'
+}
+
 export interface TextStyleDef {
   font: string
   size: number

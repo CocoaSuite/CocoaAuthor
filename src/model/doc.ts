@@ -38,6 +38,7 @@ export function summarize(d: CADocument): DocSummary {
 
 export function assetIds(node: any, out = new Set<string>()): Set<string> {
   if (!node) return out
+  if (node.type === 'doc' && Array.isArray(node.attrs?.frames)) for (const f of node.attrs.frames) if (typeof f.src === 'string' && f.src.startsWith('asset:')) out.add(f.src.slice(6))
   if (node.type === 'image' && typeof node.attrs?.src === 'string' && node.attrs.src.startsWith('asset:')) out.add(node.attrs.src.slice(6))
   if (Array.isArray(node.content)) for (const c of node.content) assetIds(c, out)
   return out

@@ -11,6 +11,7 @@ It runs in the browser (hosted on GitHub Pages) and as a desktop app for Windows
 - Live page layout as you type, or a single long page
 - Outline panel to navigate, rename, reorder, promote and demote sections
 - Styles for title, subtitle, headings, body, quotes, lists, captions, tables, footnotes, headers and footers, plus your own paragraph and character styles that inherit from a base style, with first-line and left indents, hyphenation and OpenType features (kerning, ligatures, small caps, old-style and tabular figures)
+- Floating images and text boxes placed freely on a page: drag to move, handles to resize, text wraps around them (or sits in front or behind), several side by side; images can be floated out of the text and back
 - Images with fill, fit or stretch framing, zoom and position, preset frames and free cropping (double-click an image), embedded at full resolution in PDF and Word, and alignment, tables, callouts, quotes, dividers, page breaks and section breaks with their own orientation and page numbering
 - Links to websites, email addresses and phone numbers, and to headings, figures, tables, bookmarks and pages in the same document
 - Automatic table of contents, cross-references, footnotes and endnotes
