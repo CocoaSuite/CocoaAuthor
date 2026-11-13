@@ -2,6 +2,7 @@ import type { Editor } from '@tiptap/core'
 import { NodeSelection, TextSelection } from '@tiptap/pm/state'
 import { ctxMenu, toast, type CtxItem } from './dialogs'
 import { spellAt } from '../spell/plugin'
+import { toggleParaQuotes } from './commands'
 import { suggest, addUserWord } from '../spell/engine'
 import { getSettings } from '../layout/plugin'
 
@@ -83,6 +84,7 @@ export function attachContextMenu(ed: Editor, root: HTMLElement, act: CtxActions
       { label: 'Paste', run: () => paste(ed, false) },
       { label: 'Paste as plain text', run: () => paste(ed, true) },
       { label: 'Select all', run: () => c().selectAll().run() },
+      { label: 'Quotation marks around paragraph', run: () => toggleParaQuotes(ed) },
       'sep'
     )
     if (nt === 'image') items.push({ label: 'Replace image…', run: () => act.replaceImage(s.from) }, 'sep')

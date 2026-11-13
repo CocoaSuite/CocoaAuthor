@@ -9,7 +9,7 @@ import { icon } from './icons'
 import { menuBar, toast, dropdown, confirmBox } from './dialogs'
 import { outlinePanel } from './outline'
 import { inspectorPanel } from './inspector'
-import { currentBlockStyle, setBlockStyle, setCharStyle, stylesOf, nudgeSpacing, insertImage, addImageAsset, insertSectionBreak, settingsOf, setSettings, type BlockStyle } from './commands'
+import { currentBlockStyle, setBlockStyle, setCharStyle, stylesOf, nudgeSpacing, toggleParaQuotes, insertImage, addImageAsset, insertSectionBreak, settingsOf, setSettings, type BlockStyle } from './commands'
 import { linkDialog, xrefDialog, tableDialog, noteDialog, bookmarkDialog, exportPDF, exportDOCX, exportFile, preview } from './docdialogs'
 import { metaLite, ensureAssets } from '../export/render'
 import { attachContextMenu } from './contextmenu'
@@ -160,6 +160,7 @@ export async function openWorkspace(app: HTMLElement, id: string): Promise<WS | 
     ] },
     { label: 'Insert', items: insertItems },
     { label: 'Format', items: () => [
+      { label: 'Quotation marks around paragraph  Ctrl+Shift+"', run: () => toggleParaQuotes(ed) },
       { header: 'Paragraph style' },
       ...(['body', 'title', 'subtitle', 'h1', 'h2', 'h3', 'h4', 'caption'] as BlockStyle[]).map(k => ({ label: STYLE_LABEL[k], run: () => setBlockStyle(ed, k) })),
       ...customs(stylesOf(ed)).filter(c => c.type === 'para').map(c => ({ label: c.name, run: () => setBlockStyle(ed, c.id) })),
@@ -255,6 +256,7 @@ export async function openWorkspace(app: HTMLElement, id: string): Promise<WS | 
     tb('italic', 'Italic', () => ed.chain().focus().toggleItalic().run(), () => ed.isActive('italic')),
     tb('underline', 'Underline', () => ed.chain().focus().toggleUnderline().run(), () => ed.isActive('underline')),
     tb('strike', 'Strikethrough', () => ed.chain().focus().toggleStrike().run(), () => ed.isActive('strike')),
+    tb('quotes', 'Quotation marks around paragraph (Ctrl+Shift+")', () => toggleParaQuotes(ed)),
     tc.b, hc.b, sep(),
     tb('alignl', 'Align left', () => ed.chain().focus().setTextAlign('left').run(), () => ed.isActive({ textAlign: 'left' })),
     tb('alignc', 'Centre', () => ed.chain().focus().setTextAlign('center').run(), () => ed.isActive({ textAlign: 'center' })),
@@ -375,6 +377,7 @@ export async function openWorkspace(app: HTMLElement, id: string): Promise<WS | 
     if (!mod) return
     const k = e.key.toLowerCase()
     if (k === 's') { e.preventDefault(); save().then(() => toast('Saved')) }
+    else if (e.code === 'Quote' && e.shiftKey) { e.preventDefault(); toggleParaQuotes(ed) }
     else if (k === 'f' && !e.shiftKey && !e.altKey) { e.preventDefault(); findPanel(ed, mid, false) }
     else if (k === 'h' && !e.shiftKey) { e.preventDefault(); findPanel(ed, mid, true) }
     else if (k === 'k') { e.preventDefault(); linkDialog(ed, dv) }

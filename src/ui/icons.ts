@@ -1,5 +1,6 @@
 const P: Record<string, string> = {
   plus: 'M12 5v14M5 12h14',
+  quotes: 'M6 7h4v4c0 3-2 5-4 6M14 7h4v4c0 3-2 5-4 6',
   search: 'M11 4a7 7 0 1 0 0 14a7 7 0 1 0 0-14zM21 21l-4.3-4.3',
   more: 'M5 12h.01M12 12h.01M19 12h.01',
   undo: 'M9 14L4 9l5-5M4 9h10.5a5.5 5.5 0 0 1 0 11H11',

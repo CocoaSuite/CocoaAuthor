@@ -299,3 +299,36 @@ export function nudgeSpacing(ed: Editor, step: number) {
   ed.view.dispatch(tr)
   return v
 }
+
+const QUOTES: Record<string, [string, string]> = { ru: ['«', '»'], 'en-GB': ['‘', '’'], 'en-US': ['“', '”'] }
+const OPEN = '«“‘„"\'', CLOSE = '»”’“"\''
+
+/** Put quotation marks around each selected paragraph, or take them off if every one already has them. */
+export function toggleParaQuotes(ed: Editor) {
+  const { state } = ed
+  const { from, to } = state.selection
+  const docLang = settingsOf(ed).lang
+  const blocks: { pos: number; node: PMNode }[] = []
+  state.doc.nodesBetween(from, to, (n, pos) => { if (n.isTextblock) { if (n.content.size) blocks.push({ pos, node: n }); return false } })
+  if (!blocks.length) return
+  const quoted = (n: PMNode) => { const t = n.textContent.trim(); return t.length >= 2 && OPEN.includes(t[0]) && CLOSE.includes(t[t.length - 1]) }
+  const remove = blocks.every(b => quoted(b.node))
+  const tr = state.tr
+  for (const b of [...blocks].reverse()) {
+    const start = b.pos + 1, end = b.pos + 1 + b.node.content.size
+    if (remove) {
+      // Find the first and last characters ignoring surrounding spaces.
+      const text = b.node.textBetween(0, b.node.content.size, undefined, '\ufffc')
+      const i = text.search(/\S/), j = text.length - 1 - (text.split('').reverse().join('').search(/\S/))
+      tr.delete(start + j, start + j + 1)
+      tr.delete(start + i, start + i + 1)
+    } else {
+      // Russian text gets guillemets whatever the document language.
+      const [o, c] = /\p{Script=Cyrillic}/u.test(b.node.textContent) && !/\p{Script=Latin}{3}/u.test(b.node.textContent.slice(0, 40)) ? QUOTES.ru : QUOTES[docLang] || QUOTES['en-US']
+      tr.insertText(c, end)
+      tr.insertText(o, start)
+    }
+  }
+  ed.view.dispatch(tr)
+  ed.commands.focus()
+}
