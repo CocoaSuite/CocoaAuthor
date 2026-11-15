@@ -11,7 +11,7 @@ import { Table, TableRow, TableCell, TableHeader } from '@tiptap/extension-table
 import { Plugin, PluginKey, TextSelection } from '@tiptap/pm/state'
 import { assets } from './registry'
 import { uid, esc } from '../util'
-import { layoutPlugin } from '../layout/plugin'
+import { layoutPlugin, getSettings } from '../layout/plugin'
 import { chartURL, type ChartData } from './chart'
 import { frameRatio, placeImage } from './imagegeom'
 
@@ -490,6 +490,34 @@ export const LayoutExt = Extension.create({
   addProseMirrorPlugins() { return [layoutPlugin()] }
 })
 
+/** Typing " in Russian text gives « or ». */
+export const RuQuotes = Extension.create({
+  name: 'caRuQuotes',
+  addProseMirrorPlugins() {
+    return [new Plugin({
+      key: new PluginKey('caRuQuotes'),
+      props: {
+        handleTextInput(view, from, to, text) {
+          if (text !== '"') return false
+          const $f = view.state.doc.resolve(from)
+          if (!$f.parent.isTextblock || $f.parent.type.spec.code) return false
+          const blk = $f.parent.textBetween(0, $f.parent.content.size, undefined, ' ')
+          const at = $f.parentOffset
+          const before = blk.slice(0, at), after = blk.slice(at)
+          const near = (before.match(/\p{L}(?=\P{L}*$)/u) || after.match(/\p{L}/u))?.[0]
+          let ru = near ? /\p{Script=Cyrillic}/u.test(near) : false
+          if (!near) { try { ru = getSettings(view.state.doc).lang === 'ru' } catch { ru = false } }
+          if (!ru) return false
+          const prev = before.slice(-1)
+          const q = !prev || /[\s(\[{«„“‘\u2014\u2013-]/.test(prev) ? '«' : '»'
+          view.dispatch(view.state.tr.insertText(q, from, to))
+          return true
+        }
+      }
+    })]
+  }
+})
+
 export function extensions() {
   return [
     StarterKit.configure({
@@ -503,7 +531,7 @@ export function extensions() {
     Highlight.configure({ multicolor: true }),
     TextAlign.configure({ types: ['heading', 'paragraph'] }),
     Table.configure({ resizable: false, cellMinWidth: 30 }), TableRow, HeadCell, Cell,
-    ParaFormat, Spacing, Ids, LayoutExt
+    ParaFormat, Spacing, Ids, LayoutExt, RuQuotes
   ]
 }
 
@@ -519,6 +547,6 @@ export function boxExtensions() {
     TextStyle, Color, FontFamily, FontSize,
     Highlight.configure({ multicolor: true }),
     TextAlign.configure({ types: ['heading', 'paragraph'] }),
-    ParaFormat, Spacing
+    ParaFormat, Spacing, RuQuotes
   ]
 }
