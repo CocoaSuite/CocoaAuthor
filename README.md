@@ -24,7 +24,7 @@ It runs in the browser (hosted on GitHub Pages) and as a desktop app for Windows
 - Markdown import (`.md`, or a `.zip` with its images): front matter, headings, lists, task lists, tables, footnotes, quotes, GitHub alerts as callouts, code, images with captions, links between headings and page breaks (`\pagebreak`, `\newpage` or `<!-- pagebreak -->`)
 - Find and replace (Ctrl+F, Ctrl+H) with match case, whole words and regular expressions
 - Spell checking for English (US and UK) and Russian, also in mixed-language documents: suggestions on right-click, a spelling panel (F7), a personal dictionary and per-document ignored words
-- PDF viewer: open any PDF (Open PDF…, drag and drop, or double-click with CocoaAuthor set as the PDF app on desktop) with zoom, search, page thumbnails, rotate and print
+- PDF viewer and review: open any PDF (Open PDF…, drag and drop, or double-click with CocoaAuthor set as the PDF app on desktop) with page thumbnails, outline, search, zoom, rotate and print. Highlight, underline or strike out text, draw with a pen or highlighter, add rectangles, ellipses, arrows, text boxes and comments with replies. Markup is saved into the PDF as standard annotations, so other PDF apps show it too, and it stays editable when reopened
 - Autosave, undo and redo
 
 ## Documents and storage

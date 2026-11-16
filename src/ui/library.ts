@@ -1,5 +1,6 @@
 import { store, native, openFile, openFiles, unpackDoc, saveFile, safeName, packDoc } from '../storage/store'
 import { newDoc } from '../model/doc'
+import { addPdf } from '../pdf/source'
 import { themeStyles } from '../model/themes'
 import { thumbFor, thumbForDoc } from './thumbs'
 import type { DocSummary, DocStatus } from '../model/types'
@@ -19,13 +20,11 @@ export async function createFromTemplate(t: Template | null) {
 
 export const OPEN_EXTS = ['.cocoaauthor', '.docx', '.md', '.markdown', '.zip', '.pdf']
 
-/** PDFs are viewed, not imported: in their own window on desktop, in a new tab on the web. */
+/** PDFs open in the PDF viewer: in their own window on desktop, in this tab on the web. */
 export async function viewPdf(name: string, data: Uint8Array) {
   const buf = data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength) as ArrayBuffer
   if (native?.viewPdf) return native.viewPdf(name, buf)
-  const url = URL.createObjectURL(new Blob([buf], { type: 'application/pdf' }))
-  if (!window.open(url, '_blank')) toast('Allow pop-ups to view PDFs.', 5000)
-  setTimeout(() => URL.revokeObjectURL(url), 60000)
+  go('/pdf/' + addPdf({ name, data: new Uint8Array(buf) }))
 }
 
 export async function importAny() {

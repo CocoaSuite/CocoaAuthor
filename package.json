@@ -1,6 +1,6 @@
 {
   "name": "cocoaauthor",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Document authoring and publishing for the Cocoa suite.",
   "main": "electron/main.cjs",
   "scripts": {
@@ -34,7 +34,8 @@
     "markdown-it": "^15.0.3",
     "markdown-it-footnote": "^4.0.0",
     "nspell": "^2.1.5",
-    "pdf-lib": "^1.17.1"
+    "pdf-lib": "^1.17.1",
+    "pdfjs-dist": "^6.5.438"
   },
   "devDependencies": {
     "@expo-google-fonts/inter": "^0.4.2",

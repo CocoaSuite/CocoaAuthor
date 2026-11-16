@@ -27,7 +27,8 @@ export interface Native {
   onOpenFile(cb: (f: { name: string; data: ArrayBuffer; files?: Record<string, ArrayBuffer> }) => void): void
   setTitle(t: string): void
   viewPdf?(name: string, data: ArrayBuffer): Promise<void>
-  viewPdfPath?(file: string): Promise<void>
+  pdfInfo?(token: string): Promise<{ name: string; data: ArrayBuffer; path: string | null } | null>
+  savePdf?(token: string, data: ArrayBuffer, as: boolean): Promise<string | null>
 }
 
 export const native: Native | undefined = (window as any).cocoaNative

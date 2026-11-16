@@ -67,7 +67,19 @@ const P: Record<string, string> = {
   leveldown: 'M9 18l6-6-6-6',
   grip: 'M9 6h.01M15 6h.01M9 12h.01M15 12h.01M9 18h.01M15 18h.01',
   caption: 'M4 4h16v10H4zM4 18h10',
-  chart: 'M4 20h16M7 16v-5M12 16V6M17 16v-8'
+  chart: 'M4 20h16M7 16v-5M12 16V6M17 16v-8',
+  cursor: 'M5 3l14 7-6 2-2 6z',
+  hand: 'M8 13V5a1.5 1.5 0 0 1 3 0v6M11 11V4a1.5 1.5 0 0 1 3 0v7M14 11V5.5a1.5 1.5 0 0 1 3 0V14a6 6 0 0 1-6 6h-1a6 6 0 0 1-5-2.7L3 14a1.5 1.5 0 0 1 2.5-1.6L8 15',
+  pen: 'M15 4l5 5L9 20H4v-5zM13 6l5 5',
+  marker: 'M9 14l-4 4v2h5l3-3M9 14l6-10 5 3-6 10zM9 14l4 3',
+  square: 'M5 5h14v14H5z',
+  circle: 'M12 4a8 8 0 1 0 0 16a8 8 0 0 0 0-16z',
+  arrow: 'M5 19L19 5M10 5h9v9',
+  eraser: 'M8 20h12M5.5 14.5l8-8a2 2 0 0 1 2.8 0l2.2 2.2a2 2 0 0 1 0 2.8L11 19H8z',
+  comment: 'M4 5h16v11H9l-5 4z',
+  printer: 'M7 9V3h10v6M7 17H4v-7h16v7h-3M7 14h10v7H7z',
+  save: 'M5 3h11l3 3v15H5zM8 3v5h7V3M8 21v-7h8v7',
+  rotate: 'M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7'
 }
 
 export function icon(name: string, title?: string): SVGSVGElement {

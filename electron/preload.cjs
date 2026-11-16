@@ -14,5 +14,6 @@ contextBridge.exposeInMainWorld('cocoaNative', {
   onOpenFile: cb => ipcRenderer.on('open-file', (_e, f) => cb(f)),
   setTitle: t => ipcRenderer.send('setTitle', t),
   viewPdf: (name, data) => ipcRenderer.invoke('viewPdf', name, data),
-  viewPdfPath: file => ipcRenderer.invoke('viewPdfPath', file)
+  pdfInfo: t => ipcRenderer.invoke('pdfInfo', t),
+  savePdf: (t, data, as) => ipcRenderer.invoke('savePdf', t, data, as)
 })

@@ -63,33 +63,48 @@ async function readOpened(file) {
 const isPdf = f => /\.pdf$/i.test(f)
 const external = url => { if (/^(https?|mailto|tel):/i.test(url)) shell.openExternal(url) }
 
-// PDFs open in their own window with Chromium's built-in viewer (zoom, search, thumbnails, rotate, print).
-function openPdf(file) {
-  const w = new BrowserWindow({
-    width: 1100, height: 900, minWidth: 420, minHeight: 320,
-    title: path.basename(file),
-    backgroundColor: '#525659',
-    icon: path.join(__dirname, '..', 'build', 'icon.png'),
-    autoHideMenuBar: true,
-    webPreferences: { plugins: true, contextIsolation: true, sandbox: true }
-  })
+// PDFs open in CocoaAuthor's own viewer, one window each. Tokens map windows to their files.
+const pdfDocs = new Map()
+const token = () => 'p' + Math.random().toString(36).slice(2, 10) + Date.now().toString(36)
+
+function guardWindow(w) {
   w.webContents.setWindowOpenHandler(({ url }) => { external(url); return { action: 'deny' } })
-  w.webContents.on('will-navigate', (e, url) => { if (!url.startsWith('file:')) { e.preventDefault(); external(url) } })
+  w.webContents.on('will-navigate', (e, url) => { if (!url.startsWith('app://')) { e.preventDefault(); external(url) } })
+  w.webContents.on('will-prevent-unload', e => {
+    const r = dialog.showMessageBoxSync(w, { type: 'question', buttons: ['Leave', 'Stay'], defaultId: 1, cancelId: 1, title: 'Unsaved changes', message: 'Leave without saving?', detail: 'Your changes have not been saved.' })
+    if (r === 0) e.preventDefault()
+  })
+}
+
+function openPdfWindow(t) {
+  const d = pdfDocs.get(t)
+  const w = new BrowserWindow({
+    width: 1360, height: 920, minWidth: 640, minHeight: 420,
+    title: d.name + ' — CocoaAuthor',
+    backgroundColor: '#121212',
+    icon: path.join(__dirname, '..', 'build', 'icon.png'),
+    autoHideMenuBar: process.platform !== 'darwin',
+    webPreferences: { preload: path.join(__dirname, 'preload.cjs'), contextIsolation: true, sandbox: true, spellcheck: true }
+  })
+  guardWindow(w)
   w.webContents.on('before-input-event', (e, i) => {
     if (i.type !== 'keyDown') return
-    const mod = i.control || i.meta
-    if (mod && i.key.toLowerCase() === 'w') { e.preventDefault(); w.close() }
-    else if (mod && i.key.toLowerCase() === 'o') { e.preventDefault(); pickAndOpen() }
+    if ((i.control || i.meta) && i.key.toLowerCase() === 'w') { e.preventDefault(); w.close() }
     else if (i.key === 'F11') { e.preventDefault(); w.setFullScreen(!w.isFullScreen()) }
   })
   w.on('page-title-updated', e => e.preventDefault())
-  w.loadURL(pathToFileURL(file).toString())
-  w.focus()
+  w.on('closed', () => pdfDocs.delete(t))
+  w.loadURL('app://cocoaauthor/index.html#/pdf/' + t)
 }
 
-async function pickAndOpen() {
-  const r = await dialog.showOpenDialog({ properties: ['openFile', 'multiSelections'], filters: [{ name: 'Documents', extensions: ['pdf', 'cocoaauthor', 'docx', 'md', 'markdown', 'zip'] }] })
-  if (!r.canceled) for (const f of r.filePaths) deliver(f)
+function openPdf(file) {
+  for (const [t, d] of pdfDocs) if (d.file === file) {
+    const w = BrowserWindow.getAllWindows().find(x => x.webContents.getURL().endsWith('/pdf/' + t))
+    if (w) { if (w.isMinimized()) w.restore(); w.focus(); return }
+  }
+  const t = token()
+  pdfDocs.set(t, { file, name: path.basename(file) })
+  openPdfWindow(t)
 }
 
 async function deliver(file) {
@@ -114,13 +129,7 @@ function createWindow() {
     autoHideMenuBar: process.platform !== 'darwin',
     webPreferences: { preload: path.join(__dirname, 'preload.cjs'), contextIsolation: true, sandbox: true, spellcheck: true }
   })
-  win.webContents.setWindowOpenHandler(({ url }) => {
-    if (/^(https?|mailto|tel):/i.test(url)) shell.openExternal(url)
-    return { action: 'deny' }
-  })
-  win.webContents.on('will-navigate', (e, url) => {
-    if (!url.startsWith('app://')) { e.preventDefault(); external(url) }
-  })
+  guardWindow(win)
   win.webContents.on('did-finish-load', () => { while (pendingFiles.length) win.webContents.send('open-file', pendingFiles.shift()) })
   win.loadURL('app://cocoaauthor/index.html')
   win.on('closed', () => { win = null })
@@ -183,24 +192,34 @@ ipcMain.handle('pruneAssets', async (_e, id, keep) => {
   try { list = await fsp.readdir(dir) } catch { return }
   for (const f of list) if (!keep.includes(f)) await fsp.rm(path.join(dir, f), { force: true })
 })
-ipcMain.handle('openFile', async (_e, filters) => {
-  const r = await dialog.showOpenDialog(win, { properties: ['openFile'], filters })
+ipcMain.handle('openFile', async (e, filters) => {
+  const r = await dialog.showOpenDialog(BrowserWindow.fromWebContents(e.sender), { properties: ['openFile'], filters })
   if (r.canceled || !r.filePaths[0]) return null
   if (isPdf(r.filePaths[0])) { openPdf(r.filePaths[0]); return { name: path.basename(r.filePaths[0]), viewed: true } }
   return readOpened(r.filePaths[0])
 })
-// A PDF dropped or exported in the app: write it to a temp file and view it.
+// A PDF dropped onto the library: no file path, so the first save asks where to put it.
 ipcMain.handle('viewPdf', async (_e, name, data) => {
-  const dir = path.join(os.tmpdir(), 'cocoaauthor-pdf')
-  const file = path.join(dir, Date.now() + '-' + String(name).replace(/[^\w .()-]/g, '_').slice(0, 120))
+  const t = token()
+  pdfDocs.set(t, { file: null, name: String(name).slice(0, 200), data: Buffer.from(data) })
+  openPdfWindow(t)
+})
+ipcMain.handle('pdfInfo', async (_e, t) => {
+  const d = pdfDocs.get(t)
+  if (!d) return null
+  try { return { name: d.name, path: d.file, data: ab(d.file ? await fsp.readFile(d.file) : d.data) } } catch { return null }
+})
+ipcMain.handle('savePdf', async (e, t, data, as) => {
+  const d = pdfDocs.get(t)
+  if (!d) return null
+  let file = d.file
+  if (as || !file) {
+    const r = await dialog.showSaveDialog(BrowserWindow.fromWebContents(e.sender), { defaultPath: file || path.join(app.getPath('documents'), d.name), filters: [{ name: 'PDF document', extensions: ['pdf'] }] })
+    if (r.canceled || !r.filePath) return null
+    file = r.filePath
+  }
   await writeAtomic(file, Buffer.from(data))
-  openPdf(file)
+  d.file = file; d.name = path.basename(file); d.data = null
+  return file
 })
-ipcMain.handle('viewPdfPath', async (_e, file) => { if (isPdf(file) && fs.existsSync(file)) openPdf(file) })
-ipcMain.handle('saveFile', async (_e, name, data, filters) => {
-  const r = await dialog.showSaveDialog(win, { defaultPath: path.join(app.getPath('documents'), name), filters })
-  if (r.canceled || !r.filePath) return null
-  await writeAtomic(r.filePath, Buffer.from(data))
-  return r.filePath
-})
-ipcMain.on('setTitle', (_e, t) => { if (win) win.setTitle(String(t).slice(0, 200)) })
+ipcMain.on('setTitle', (e, t) => { const w = BrowserWindow.fromWebContents(e.sender); if (w) w.setTitle(String(t).slice(0, 200)) })
