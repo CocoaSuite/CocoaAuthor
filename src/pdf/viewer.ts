@@ -1,7 +1,7 @@
 import * as pdfjs from 'pdfjs-dist'
 import workerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
 import type { PDFDocumentProxy, PDFPageProxy, PageViewport, RenderTask } from 'pdfjs-dist'
-import { h, relTime, clamp, uid, esc } from '../util'
+import { h, relTime, clamp, uid, esc, keyOf } from '../util'
 import { icon } from '../ui/icons'
 import { menuBar, toast, confirmBox, promptBox } from '../ui/dialogs'
 import { native, saveFile, openFile } from '../storage/store'
@@ -101,6 +101,8 @@ export async function openPdfViewer(app: HTMLElement, token: string): Promise<WS
         { label: 'Close', icon: icon('x'), run: async () => { if (await leaveOk()) { if (native) window.close(); else go('/') } } }
       ] },
       { label: 'View', items: () => [
+        { label: 'Find…  Ctrl+F', icon: icon('search'), run: () => openFind() },
+        'sep',
         { label: 'Fit width', icon: icon('alignj'), run: () => setZoom('width') },
         { label: 'Fit page', icon: icon('page'), run: () => setZoom('page') },
         { label: 'Actual size', icon: icon('eye'), run: () => setZoom(1) },
@@ -137,6 +139,7 @@ export async function openPdfViewer(app: HTMLElement, token: string): Promise<WS
       h('button', { class: 'ic pv-fit', title: 'Fit width (Ctrl+0)', onclick: () => setZoom(zoomMode === 'width' ? 'page' : 'width') }, 'Fit'),
       h('button', { class: 'ic', title: 'Rotate', onclick: () => rotate(90) }, icon('rotate'))),
     h('span', { class: 'sp' }),
+    h('button', { class: 'ic', title: 'Find (Ctrl+F)', onclick: () => openFind() }, icon('search')),
     h('button', { class: 'ic', title: 'Print (Ctrl+P)', onclick: printPdf }, icon('printer')),
     saveBtn
   )
@@ -446,6 +449,7 @@ export async function openPdfViewer(app: HTMLElement, token: string): Promise<WS
   let hits: { page: number; at: number }[] = []
   let hitIdx = -1
   let searchRun = 0
+  let searching = false
   async function runSearch() {
     const q = searchIn.value.trim()
     query = q.toLowerCase()
@@ -454,8 +458,11 @@ export async function openPdfViewer(app: HTMLElement, token: string): Promise<WS
     results.innerHTML = ''
     searchCount.textContent = ''
     pvs.forEach(markSearch)
+    findShow()
     if (!q) return
     searchCount.textContent = '…'
+    searching = true
+    findShow()
     for (let i = 0; i < pvs.length; i++) {
       const t = await textOf(i)
       if (run !== searchRun) return
@@ -475,7 +482,9 @@ export async function openPdfViewer(app: HTMLElement, token: string): Promise<WS
       searchCount.textContent = hits.length ? hits.length + (hits.length === 1 ? ' match' : ' matches') : (i < pvs.length - 1 ? '…' : '')
     }
     searchCount.textContent = hits.length ? hits.length + (hits.length === 1 ? ' match' : ' matches') : 'No matches'
+    searching = false
     if (hits.length) showHit(0)
+    findShow()
   }
   function showHit(k: number) {
     if (!hits.length) return
@@ -485,6 +494,7 @@ export async function openPdfViewer(app: HTMLElement, token: string): Promise<WS
     b?.classList.add('on'); b?.scrollIntoView({ block: 'nearest' })
     const pv = pvs[hits[hitIdx].page]
     goPage(pv.i)
+    findShow()
     const tryScroll = () => {
       const m = pv.textEl?.querySelectorAll('.hl')
       if (!m?.length) return false
@@ -523,6 +533,52 @@ export async function openPdfViewer(app: HTMLElement, token: string): Promise<WS
     if (e.key === 'Escape') { searchIn.value = ''; runSearch(); desk.focus() }
   }
   searchIn.addEventListener('search', () => { if (!searchIn.value) runSearch() })
+  searchIn.addEventListener('input', () => { if (findIn.value !== searchIn.value) findIn.value = searchIn.value })
+
+  // Floating find bar (Ctrl+F). It drives the same search as the Search tab, which keeps the full result list.
+  const findIn = h('input', { type: 'text', placeholder: 'Find in PDF', 'aria-label': 'Find in PDF', spellcheck: 'false' }) as HTMLInputElement
+  const findCount = h('span', { class: 'fcount' })
+  const findEl = h('div', { class: 'findp pvf', role: 'search', hidden: true },
+    h('div', { class: 'frow' }, findIn, findCount,
+      h('button', { class: 'ic', title: 'Previous match (Shift+Enter)', 'aria-label': 'Previous match', onclick: () => stepHit(-1) }, '↑'),
+      h('button', { class: 'ic', title: 'Next match (Enter)', 'aria-label': 'Next match', onclick: () => stepHit(1) }, '↓'),
+      h('button', { class: 'ic', title: 'All results', 'aria-label': 'All results', onclick: () => { if (mid.classList.contains('no-r')) toggleSide('r'); if (rTab !== 1) showTab(rTabs, 1); findIn.focus() } }, '☰'),
+      h('button', { class: 'ic', title: 'Close (Esc)', 'aria-label': 'Close', onclick: () => closeFind() }, '✕')))
+  mid.append(findEl)
+  let findTimer = 0
+  function findShow() {
+    const q = searchIn.value.trim()
+    findCount.textContent = !q ? '' : hits.length ? `${Math.max(hitIdx, 0) + 1} of ${hits.length}` : searching ? '…' : 'No results'
+    findCount.classList.toggle('bad', !!q && !hits.length && !searching)
+  }
+  function stepHit(d: number) {
+    clearTimeout(findTimer)
+    if (searchIn.value !== findIn.value || findIn.value.trim().toLowerCase() !== query) { searchIn.value = findIn.value; runSearch() }
+    else showHit(hitIdx + d)
+  }
+  function openFind() {
+    const picked = (getSelection()?.toString() || '').trim()
+    findEl.hidden = false
+    if (picked && picked.length < 200 && !picked.includes('\n')) { findIn.value = searchIn.value = picked; runSearch() }
+    else findIn.value = searchIn.value
+    findIn.focus(); findIn.select()
+    findShow()
+  }
+  function closeFind() {
+    clearTimeout(findTimer)
+    findEl.hidden = true
+    findIn.value = searchIn.value = ''
+    runSearch()
+    desk.focus()
+  }
+  findIn.addEventListener('input', () => {
+    clearTimeout(findTimer)
+    findTimer = window.setTimeout(() => { searchIn.value = findIn.value; runSearch() }, 200)
+  })
+  findIn.addEventListener('keydown', e => {
+    if (e.key === 'Enter') { e.preventDefault(); stepHit(e.shiftKey ? -1 : 1) }
+    else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); closeFind() }
+  })
 
   // ---------- annotations: drawing ----------
   const SVGNS = 'http://www.w3.org/2000/svg'
@@ -1202,14 +1258,16 @@ export async function openPdfViewer(app: HTMLElement, token: string): Promise<WS
   const keys = (e: KeyboardEvent) => {
     if (document.querySelector('.modal')) return
     const mod = e.ctrlKey || e.metaKey
-    const k = e.key.toLowerCase()
+    const k = keyOf(e)
     if (mod && k === 's') { e.preventDefault(); save(e.shiftKey); return }
     if (mod && k === 'p') { e.preventDefault(); printPdf(); return }
     if (mod && k === 'o') { e.preventDefault(); openOther(); return }
-    if (mod && k === 'f') { e.preventDefault(); if (mid.classList.contains('no-r')) toggleSide('r'); showTab(rTabs, 1); searchIn.select(); return }
+    if (mod && k === 'f') { e.preventDefault(); openFind(); return }
+    if (mod && k === 'g') { e.preventDefault(); if (hits.length) showHit(hitIdx + (e.shiftKey ? -1 : 1)); else openFind(); return }
     if (mod && (k === '=' || k === '+')) { e.preventDefault(); zoomBy(1.2); return }
     if (mod && k === '-') { e.preventDefault(); zoomBy(1 / 1.2); return }
     if (mod && k === '0') { e.preventDefault(); setZoom('width'); return }
+    if (e.key === 'F3') { e.preventDefault(); if (hits.length) showHit(hitIdx + (e.shiftKey ? -1 : 1)); else openFind(); return }
     if (typing(e.target)) return
     if (mod && k === 'z') { e.preventDefault(); e.shiftKey ? doRedo() : doUndo(); return }
     if (mod && k === 'y') { e.preventDefault(); doRedo(); return }
@@ -1217,7 +1275,6 @@ export async function openPdfViewer(app: HTMLElement, token: string): Promise<WS
     if ((e.key === 'Delete' || e.key === 'Backspace') && selId) { e.preventDefault(); del(selId); return }
     if (e.key === 'Escape') { if (selId) select(null); else setTool('select'); getSelection()?.removeAllRanges(); return }
     if (e.key === ' ' && !spaceDown) { spaceDown = true; desk.classList.add('space'); e.preventDefault(); return }
-    if (e.key === 'F3') { e.preventDefault(); showHit(hitIdx + (e.shiftKey ? -1 : 1)); return }
     if (e.key === 'ArrowRight' && desk.scrollWidth <= desk.clientWidth) { goPage(cur + 1); return }
     if (e.key === 'ArrowLeft' && desk.scrollWidth <= desk.clientWidth) { goPage(cur - 1); return }
     if (e.key === 'Home') { goPage(0); return }

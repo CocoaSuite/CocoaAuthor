@@ -89,7 +89,7 @@ function openPdfWindow(t) {
   guardWindow(w)
   w.webContents.on('before-input-event', (e, i) => {
     if (i.type !== 'keyDown') return
-    if ((i.control || i.meta) && i.key.toLowerCase() === 'w') { e.preventDefault(); w.close() }
+    if ((i.control || i.meta) && (i.code === 'KeyW' || i.key.toLowerCase() === 'w')) { e.preventDefault(); w.close() }
     else if (i.key === 'F11') { e.preventDefault(); w.setFullScreen(!w.isFullScreen()) }
   })
   w.on('page-title-updated', e => e.preventDefault())

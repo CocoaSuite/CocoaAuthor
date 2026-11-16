@@ -4,7 +4,7 @@ import { assets } from '../editor/registry'
 import { store, native } from '../storage/store'
 import { assetIds } from '../model/doc'
 import { FONTS } from '../model/types'
-import { h, debounce } from '../util'
+import { h, debounce, keyOf } from '../util'
 import { icon } from './icons'
 import { menuBar, toast, dropdown, confirmBox } from './dialogs'
 import { outlinePanel } from './outline'
@@ -375,7 +375,7 @@ export async function openWorkspace(app: HTMLElement, id: string): Promise<WS | 
     }
     const mod = e.metaKey || e.ctrlKey
     if (!mod) return
-    const k = e.key.toLowerCase()
+    const k = keyOf(e)
     if (k === 's') { e.preventDefault(); save().then(() => toast('Saved')) }
     else if (e.code === 'Quote' && e.shiftKey) { e.preventDefault(); toggleParaQuotes(ed) }
     else if (k === 'f' && !e.shiftKey && !e.altKey) { e.preventDefault(); findPanel(ed, mid, false) }

@@ -2,6 +2,14 @@ import type { NumberFormat } from './model/types'
 
 export const uid = (p = '') => p + Math.random().toString(36).slice(2, 8) + Date.now().toString(36).slice(-3)
 
+/** Shortcut letter for a key event. Falls back to the physical key when the layout is not Latin (Ctrl+F on a Russian layout reports 'а'). */
+export function keyOf(e: KeyboardEvent): string {
+  const k = e.key.toLowerCase()
+  if (k.length !== 1 || k.charCodeAt(0) < 128) return k
+  const m = /^(?:Key|Digit)(\w)$/.exec(e.code)
+  return m ? m[1].toLowerCase() : k
+}
+
 export const esc = (s: string) => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!))
 
 export function h<K extends keyof HTMLElementTagNameMap>(tag: K, attrs: Record<string, any> = {}, ...kids: (Node | string | null | false | undefined)[]): HTMLElementTagNameMap[K] {
