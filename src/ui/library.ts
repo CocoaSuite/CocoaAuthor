@@ -8,7 +8,7 @@ import type { DocSummary, DocStatus } from '../model/types'
 import { TEMPLATES, CATEGORIES, templateContent, type Template } from '../templates'
 import { h, relTime } from '../util'
 import { icon } from './icons'
-import { toast, ctxMenu, promptBox, menuBar } from './dialogs'
+import { toast, ctxMenu, promptBox, menuBar, menuButton, type MenuDef } from './dialogs'
 import { go } from '../router'
 import { deleteDocConfirmed } from './workspace'
 import { exportPDF, exportDOCX } from './docdialogs'
@@ -89,10 +89,7 @@ export async function renderLibrary(app: HTMLElement, view: 'recent' | 'all' | '
   let q = ''
   let sort = localStorage.getItem('ca-sort') || 'modified'
 
-  app.innerHTML = ''
-  const top = h('div', { id: 'top' },
-    h('button', { class: 'brand', title: 'CocoaAuthor', onclick: () => go('/') }, h('img', { src: 'logo.svg', alt: 'CocoaAuthor' })),
-    menuBar([{ label: 'File', items: () => [
+  const libMenus: MenuDef[] = [{ label: 'File', items: () => [
       { label: 'New document', icon: icon('plus'), run: () => createFromTemplate(null) },
       { label: 'New from template…', icon: icon('template'), run: () => go('/templates') },
       'sep',
@@ -100,7 +97,19 @@ export async function renderLibrary(app: HTMLElement, view: 'recent' | 'all' | '
       { label: 'Open PDF…', icon: icon('file'), run: openPdfFile },
       { label: 'Import Word document…', icon: icon('word'), run: importAny },
       { label: 'Import Markdown…', icon: icon('file'), run: importAny }
-    ] }]),
+    ] }]
+  // on phones the side navigation is hidden, so the menu button also carries it
+  const navMenu: MenuDef = { label: 'Library', items: () => [
+    { label: 'Recent', icon: icon('clock'), run: () => go('/recent') },
+    { label: 'All documents', icon: icon('grid'), run: () => go('/all') },
+    { label: 'Templates', icon: icon('template'), run: () => go('/templates') },
+    { label: 'Archived', icon: icon('archive'), run: () => go('/archived') }
+  ] }
+
+  app.innerHTML = ''
+  const top = h('div', { id: 'top' },
+    h('button', { class: 'brand', title: 'CocoaAuthor', onclick: () => go('/') }, h('img', { src: 'logo.svg', alt: 'CocoaAuthor' })),
+    menuButton([...libMenus, navMenu]), menuBar(libMenus),
     h('span', { class: 'sp' }),
     native?.setAppIcon ? h('button', { class: 'ic', title: 'Settings', 'aria-label': 'Settings', onclick: appSettingsDialog }, icon('gear')) : '',
     h('button', { onclick: importAny }, icon('upload'), h('span', {}, 'Open or import')),

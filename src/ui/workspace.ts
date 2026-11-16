@@ -6,7 +6,7 @@ import { assetIds } from '../model/doc'
 import { FONTS } from '../model/types'
 import { h, debounce, keyOf } from '../util'
 import { icon } from './icons'
-import { menuBar, toast, dropdown, confirmBox } from './dialogs'
+import { menuBar, menuButton, toast, dropdown, confirmBox, type MenuDef } from './dialogs'
 import { outlinePanel } from './outline'
 import { inspectorPanel } from './inspector'
 import { currentBlockStyle, setBlockStyle, setCharStyle, stylesOf, nudgeSpacing, toggleParaQuotes, insertImage, addImageAsset, insertSectionBreak, settingsOf, setSettings, type BlockStyle } from './commands'
@@ -138,7 +138,7 @@ export async function openWorkspace(app: HTMLElement, id: string): Promise<WS | 
   const toggleL = () => { if (!tabletToggle('l')) mid.classList.toggle(innerWidth < 1000 ? 'show-l' : 'no-l') }
   const toggleR = () => { if (!tabletToggle('r')) mid.classList.toggle(innerWidth < 1000 ? 'show-r' : 'no-r') }
 
-  const menus = menuBar([
+  const menuDefs: MenuDef[] = [
     { label: 'File', items: () => [
       { label: 'Document library', icon: icon('grid'), run: () => go('/') },
       { label: 'Save now', icon: icon('check'), run: async () => { await save(); toast('Saved') } },
@@ -186,12 +186,13 @@ export async function openWorkspace(app: HTMLElement, id: string): Promise<WS | 
       'sep',
       { label: 'Show tutorial', icon: icon('info'), run: () => runOnboarding() }
     ] }
-  ])
+  ]
+  const menus = menuBar(menuDefs)
   const showR = () => { if (tabletToggle('r', true)) return; mid.classList.remove('no-r'); if (innerWidth < 1000) mid.classList.add('show-r') }
 
   top.append(
     h('button', { class: 'brand', title: 'Document library', onclick: () => go('/') }, h('img', { src: 'logo.svg', alt: 'CocoaAuthor' })),
-    menus, nameIn, status, h('span', { class: 'sp' }), pgInd,
+    menuButton(menuDefs), menus, nameIn, status, h('span', { class: 'sp' }), pgInd,
     h('button', { class: 'ic tgl-only', title: 'Outline', onclick: toggleL }, icon('sidebar')),
     h('div', { class: 'zoom' }, h('button', { class: 'ic', title: 'Zoom out', onclick: () => setZoom(dv.zoom / 1.15) }, icon('zout')), zl, h('button', { class: 'ic', title: 'Zoom in', onclick: () => setZoom(dv.zoom * 1.15) }, icon('zin'))),
     h('button', { class: 'tgl-only ic', title: 'Inspector', onclick: toggleR }, icon('sliders')),

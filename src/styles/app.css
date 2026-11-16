@@ -346,3 +346,13 @@ body{padding:env(safe-area-inset-top) env(safe-area-inset-right) 0 env(safe-area
  .brand img{height:24px}
  #dname{flex:1 1 60px;margin-left:0}
 }
+
+/* phones: the menus live behind one button */
+.menus-more{display:none}
+@media (max-width:700px){
+ .menus-more{display:inline-flex}
+ .ctx{max-height:calc(100dvh - 90px);overflow:auto}
+}
+.ctx button svg.chev{order:2;margin-left:auto;color:var(--mute)}
+/* long-press opens CocoaAuthor's menu, not the system callout */
+@media (pointer:coarse){ .ProseMirror,.card,.lr{-webkit-touch-callout:none} .card,.lr{-webkit-user-select:none;user-select:none} }

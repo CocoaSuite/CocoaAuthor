@@ -80,7 +80,23 @@ export function progressBox(title: string) {
   }
 }
 
-export function menuBar(defs: { label: string; items: () => ({ label: string; icon?: Node; run: () => void; disabled?: boolean } | 'sep' | { header: string })[]; right?: boolean }[]): HTMLElement {
+export type MenuItem = { label: string; icon?: Node; run: () => void; disabled?: boolean } | 'sep' | { header: string }
+export type MenuDef = { label: string; items: () => MenuItem[]; right?: boolean }
+
+/** The same menus as one button, for phones where the menu bar doesn't fit: tap it, pick a menu, pick an item. */
+export function menuButton(defs: MenuDef[]): HTMLElement {
+  const b = h('button', { class: 'ic menus-more', title: 'Menu', 'aria-label': 'Menu', 'aria-haspopup': 'true' }) as HTMLButtonElement
+  b.innerHTML = '<svg class="i" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></svg>'
+  b.onclick = () => {
+    if (document.querySelector('.ctx.mm')) { document.querySelectorAll('.ctx').forEach(e => e.remove()); return }
+    dropdown(b, defs.map(d => ({ label: d.label, icon: chev(), run: () => { dropdown(b, d.items()); document.querySelector('.ctx')?.classList.add('mm') } })))
+    document.querySelector('.ctx')?.classList.add('mm')
+  }
+  return b
+}
+const chev = () => { const s = document.createElementNS('http://www.w3.org/2000/svg', 'svg'); s.setAttribute('class', 'i chev'); s.setAttribute('viewBox', '0 0 24 24'); s.innerHTML = '<path d="M9 6l6 6-6 6"/>'; return s }
+
+export function menuBar(defs: MenuDef[]): HTMLElement {
   const bar = h('div', { class: 'menus', role: 'menubar' })
   let open: HTMLElement | null = null
   const closeAll = () => { open?.classList.remove('on'); open = null }
@@ -109,14 +125,14 @@ export function menuBar(defs: { label: string; items: () => ({ label: string; ic
   return bar
 }
 
-export function dropdown(anchor: HTMLElement, items: ({ label: string; icon?: Node; run: () => void } | 'sep' | { header: string })[], right = false) {
+export function dropdown(anchor: HTMLElement, items: MenuItem[], right = false) {
   const r = anchor.getBoundingClientRect()
   document.querySelectorAll('.ctx').forEach(e => e.remove())
   const m = h('div', { class: 'ctx', role: 'menu' })
   for (const it of items) {
     if (it === 'sep') m.append(h('hr'))
     else if ('header' in it) m.append(h('div', { class: 'lbl', style: 'font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--mute);padding:6px 10px 2px' }, it.header))
-    else m.append(h('button', { role: 'menuitem', onclick: () => { m.remove(); it.run() } }, it.icon || '', it.label))
+    else m.append(h('button', { role: 'menuitem', disabled: !!it.disabled, onclick: () => { m.remove(); it.run() } }, it.icon || '', it.label))
   }
   document.body.append(m)
   const mr = m.getBoundingClientRect()

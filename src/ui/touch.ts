@@ -20,6 +20,7 @@ export function installTouch() {
   installed = true
   panelSwipe()
   swipeDownToClose()
+  longPress()
 }
 
 /* ---------- tablet: drag a panel toward its edge to hide it, drag in from the page edge to bring it back; the panel follows the finger ---------- */
@@ -125,6 +126,37 @@ function swipeDownToClose() {
   new MutationObserver(ms => {
     for (const m of ms) for (const n of m.addedNodes) if (n instanceof HTMLElement && n.classList.contains('ctx')) requestAnimationFrame(() => fit(n))
   }).observe(document.body, { childList: true })
+}
+
+/* ---------- long-press opens CocoaAuthor's own menu (the one right-click opens on desktop), 500 ms like CocoaCanvas ---------- */
+function longPress() {
+  const HOLD = 500, SLOP = 10
+  let T: any = 0, p0: { x: number; y: number; t: Element } | null = null, fired = false
+  const stop = () => { clearTimeout(T); T = 0; p0 = null }
+  addEventListener('touchstart', e => {
+    stop(); fired = false
+    if (e.touches.length !== 1) return
+    const t = e.target as Element, p = e.touches[0]
+    if (!t?.closest || t.closest('input,textarea,select,button,.ctx,.dd,.modal,#onb,.crop-stage')) return
+    p0 = { x: p.clientX, y: p.clientY, t }
+    T = setTimeout(() => {
+      const s = p0; stop()
+      if (!s) return
+      const ev = new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: s.x, clientY: s.y, button: 2 })
+      s.t.dispatchEvent(ev)
+      if (ev.defaultPrevented) { fired = true; (navigator as any).vibrate?.(10) }
+    }, HOLD)
+  }, { passive: true, capture: true })
+  addEventListener('touchmove', e => {
+    if (!p0) return
+    const p = e.touches[0]
+    if (e.touches.length !== 1 || Math.hypot(p.clientX - p0.x, p.clientY - p0.y) > SLOP) stop()
+  }, { passive: true, capture: true })
+  // the finger lifting after the menu opened must not also tap what is under it
+  addEventListener('touchend', e => { stop(); if (fired) { fired = false; if (e.cancelable) e.preventDefault() } }, { passive: false, capture: true })
+  addEventListener('touchcancel', () => { stop(); fired = false }, { capture: true })
+  // a browser that opens its own context menu on long-press (Android) gets there first; don't open ours twice
+  addEventListener('contextmenu', e => { if (e.isTrusted && p0) stop() }, true)
 }
 
 /** Two-finger pinch on the page zooms the document (and blocks Safari's page zoom). */
