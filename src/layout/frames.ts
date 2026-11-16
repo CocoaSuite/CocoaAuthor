@@ -47,6 +47,35 @@ export function wrapPlugin() {
 
 export const framesOf = (doc: any): FrameData[] => (Array.isArray(doc.attrs.frames) ? doc.attrs.frames : [])
 
+/**
+ * Places frames that are still tied to a paragraph (from a Word import) on the page where that paragraph landed,
+ * then removes the bookmarks that marked the paragraphs. Returns true when anything changed.
+ */
+export function resolveAnchors(view: EditorView, root: HTMLElement, scale: number, layout: Layout): boolean {
+  const frames = framesOf(view.state.doc)
+  if (!frames.some(f => f.anchor) || !layout.pages.length) return false
+  const rootTop = root.getBoundingClientRect().top
+  const ids = new Set<string>()
+  const list = frames.map(f => {
+    if (!f.anchor) return f
+    ids.add(f.anchor)
+    const { anchor, dy, ...rest } = f
+    const mark = root.querySelector(`[id="${CSS.escape(anchor)}"]`)
+    const blk = mark?.closest('p,h1,h2,h3,h4')
+    if (!blk) return rest
+    const y = (blk.getBoundingClientRect().top - rootTop) / scale
+    let pg = layout.pages[0]
+    for (const p of layout.pages) if (p.top <= y + 0.5) pg = p
+    return { ...rest, page: pg.i, y: Math.max(0, Math.round((y - pg.top + (dy || 0)) * 10) / 10) }
+  })
+  const tr = view.state.tr.setDocAttribute('frames', list)
+  const del: number[] = []
+  view.state.doc.descendants((n, pos) => { if (n.type.name === 'bookmark' && ids.has(n.attrs.id)) del.push(pos) })
+  for (const pos of del.reverse()) tr.delete(pos, pos + 1)
+  view.dispatch(tr.setMeta('addToHistory', false))
+  return true
+}
+
 export function sameWraps(a: Wrap[], b: Wrap[]) {
   if (a.length !== b.length) return false
   return a.every((w, i) => { const o = b[i]; return o.key === w.key && o.pos === w.pos && o.side === w.side && Math.abs(o.w - w.w) < 0.5 && Math.abs(o.h - w.h) < 0.5 })

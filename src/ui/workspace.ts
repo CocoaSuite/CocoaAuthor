@@ -218,7 +218,10 @@ export async function openWorkspace(app: HTMLElement, id: string): Promise<WS | 
   fillStyles()
   const fontSel = h('select', { class: 'fsel', title: 'Font', 'aria-label': 'Font', onchange: () => fontSel.value ? ed.chain().focus().setFontFamily(fontSel.value).run() : ed.chain().focus().unsetFontFamily().run() }) as HTMLSelectElement
   fontSel.append(h('option', { value: '' }, 'Style font'))
-  for (const f of FONTS) fontSel.append(h('option', { value: f.name }, f.name))
+  for (const f of FONTS) if (!f.word) fontSel.append(h('option', { value: f.name }, f.name))
+  const wordFonts = h('optgroup', { label: 'Word fonts' })
+  for (const f of FONTS) if (f.word) wordFonts.append(h('option', { value: f.name }, f.name))
+  fontSel.append(wordFonts)
   const sizeIn = h('input', { type: 'number', class: 'size', min: '4', max: '200', step: '0.5', title: 'Font size (pt)', 'aria-label': 'Font size', placeholder: '–' }) as HTMLInputElement
   sizeIn.addEventListener('change', () => { const v = parseFloat(sizeIn.value); v > 0 ? ed.chain().focus().setFontSize(v + 'px').run() : ed.chain().focus().unsetFontSize().run() })
   const tb = (name: string, title: string, run: () => void, active?: () => boolean) => {

@@ -7,7 +7,23 @@ import { store } from '../storage/store'
 import { esc } from '../util'
 import type { CADocument } from '../model/types'
 
+/**
+ * Opens a Word document. The full reader keeps Word's styles, fonts, spacing, lists, tables, sections, headers and
+ * footers, pictures and text boxes; if it cannot read a file, the simpler reader still brings in the text and structure.
+ */
 export async function importDocx(data: Uint8Array, fileName: string): Promise<CADocument> {
+  try {
+    const { convertDocx } = await import('./word/convert')
+    const doc = await convertDocx(data, fileName)
+    await store.save(doc)
+    return doc
+  } catch (e) {
+    console.warn('Word import: falling back to the basic reader', e)
+    return importDocxBasic(data, fileName)
+  }
+}
+
+async function importDocxBasic(data: Uint8Array, fileName: string): Promise<CADocument> {
   const mod: any = await import('mammoth/mammoth.browser.min.js')
   const mammoth = mod.default || mod
   const title = fileName.replace(/\.docx$/i, '')
