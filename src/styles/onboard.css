@@ -1,0 +1,49 @@
+/* First-launch hello and tutorial. Matches CocoaCanvas. */
+#onb{position:fixed;inset:0;z-index:95;display:grid;place-items:center;padding:16px;background:rgba(8,8,8,0);-webkit-backdrop-filter:blur(0) saturate(1);backdrop-filter:blur(0) saturate(1);transition:background .7s ease,-webkit-backdrop-filter .7s ease,backdrop-filter .7s ease}
+#onb.on{background:rgba(8,8,8,.42);-webkit-backdrop-filter:blur(28px) saturate(1.15);backdrop-filter:blur(28px) saturate(1.15)}
+#onb.clear{background:rgba(8,8,8,0);-webkit-backdrop-filter:blur(0) saturate(1);backdrop-filter:blur(0) saturate(1);transition-duration:.95s;pointer-events:none}
+.onbH{grid-area:1/1;display:flex;flex-direction:column;align-items:center;gap:34px;transition:opacity .38s ease,transform .45s cubic-bezier(.4,0,.2,1);cursor:pointer}
+.onbH svg{width:min(72vw,440px);height:auto;overflow:visible}
+.onb-phone .onbH svg{width:min(78vw,330px)}
+.onbH path{fill:none;stroke:#fff;stroke-width:6.5;stroke-linecap:round;stroke-linejoin:round;filter:drop-shadow(0 3px 18px rgba(0,0,0,.35))}
+.onbTap{color:rgba(255,255,255,.72);font-size:15px;opacity:0;transform:translateY(6px);transition:opacity .7s,transform .7s}.onbTap.on{opacity:1;transform:none}
+.onbH.out{opacity:0;transform:translateY(-18px) scale(.97)}
+.onbC{grid-area:1/1;width:min(430px,calc(100vw - 24px));background:rgba(30,30,30,.94);border:1px solid #3a3a3a;border-radius:26px;padding:18px;box-shadow:0 24px 70px rgba(0,0,0,.55);opacity:0;transform:translateY(28px) scale(.98);transition:opacity .42s ease,transform .55s cubic-bezier(.22,.8,.24,1)}
+.onbC.in{opacity:1;transform:none}.onbC.out{opacity:0;transform:translateY(18px) scale(.98);transition-duration:.3s}
+.onb-phone .onbC{align-self:end;margin-bottom:env(safe-area-inset-bottom)}
+.onbS{transition:opacity .2s ease,transform .26s cubic-bezier(.22,.8,.24,1)}.onbS.sw{opacity:0;transform:translateX(var(--sx,16px))}
+.onbIll{height:136px;border-radius:18px;background:#141414;border:1px solid #2c2c2c;display:grid;place-items:center;margin-bottom:16px;overflow:hidden}.onbIll svg{width:100%;height:100%}
+.onbC h3{margin:0 0 6px;font-size:20px;font-weight:650;letter-spacing:-.01em;color:#f3f3f3}.onbC p{margin:0;color:#aaa;font-size:14.5px;line-height:1.5;min-height:3em}
+.onbD{display:flex;gap:6px;margin:16px 0 14px}.onbD i{width:7px;height:7px;border-radius:4px;background:#444;transition:width .3s,background .3s}.onbD i.on{width:22px;background:var(--brand)}
+.onbR{display:flex;align-items:center;gap:8px}.onbR .sp{flex:1}.onbR button{padding:10px 18px;border-radius:12px;font-size:14px}.onbSk,.onbBk{background:none!important;border-color:transparent!important;color:#999}.onbR .pri{padding:10px 24px;font-weight:600}
+/* illustration motion */
+.oGrow{transform-origin:74px 18px;animation:oGrow 2.6s cubic-bezier(.4,0,.2,1) infinite}@keyframes oGrow{0%,12%{transform:scale(0)}55%,88%{transform:scale(1)}100%{transform:scale(1);opacity:0}}
+.oDrag{animation:oDrag 2.6s cubic-bezier(.4,0,.2,1) infinite}@keyframes oDrag{0%,12%{transform:translate(74px,18px)}55%,88%{transform:translate(166px,70px)}100%{transform:translate(166px,70px);opacity:0}}
+.oP1{animation:oP1 2.4s ease-in-out infinite}.oP2{animation:oP2 2.4s ease-in-out infinite}@keyframes oP1{0%,100%{transform:translate(108px,60px)}50%{transform:translate(70px,60px)}}@keyframes oP2{0%,100%{transform:translate(132px,60px)}50%{transform:translate(170px,60px)}}
+.oZoom{transform-origin:120px 60px;animation:oZoom 2.4s ease-in-out infinite}@keyframes oZoom{0%,100%{transform:scale(.8)}50%{transform:scale(1.5)}}
+.oPulse{transform-box:fill-box;transform-origin:center;animation:oPulse 2.4s ease-in-out infinite}.oPulse.o2{animation-delay:1.2s}@keyframes oPulse{0%,100%{transform:scale(1);opacity:.7}50%{transform:scale(1.35);opacity:1}}
+.oSheet{animation:oSheet 2.4s cubic-bezier(.22,.8,.24,1) infinite}@keyframes oSheet{0%,20%{transform:translateY(56px)}50%,85%{transform:none}100%{transform:translateY(56px)}}
+.oRing{transform-box:fill-box;transform-origin:center;animation:oRing 2.2s ease-out infinite}@keyframes oRing{0%{transform:scale(.6);opacity:0}30%{opacity:1}60%,100%{transform:scale(2.2);opacity:0}}
+.oMenu{animation:oMenu 2.2s ease-out infinite}@keyframes oMenu{0%,45%{opacity:0;transform:translateY(6px)}60%,90%{opacity:1;transform:none}100%{opacity:0}}
+.oType{animation:oType 3s steps(14) infinite}@keyframes oType{0%{clip-path:inset(0 100% 0 0)}50%,100%{clip-path:inset(0 0 0 0)}}
+.oPop{transform-box:fill-box;transform-origin:center;animation:oPop 3s cubic-bezier(.3,1.6,.5,1) infinite}@keyframes oPop{0%,55%{transform:scale(0)}68%,92%{transform:scale(1)}100%{transform:scale(0)}}
+.oSlide{animation:oSlide 2.6s cubic-bezier(.22,.8,.24,1) infinite}@keyframes oSlide{0%,20%{transform:none;opacity:1}50%,70%{transform:translateX(-60px);opacity:0}100%{transform:none;opacity:1}}
+.oSw{animation:oSw 2.6s cubic-bezier(.22,.8,.24,1) infinite}@keyframes oSw{0%,15%{transform:translate(80px,60px);opacity:0}20%{opacity:1}50%{transform:translate(30px,60px);opacity:1}60%,100%{transform:translate(30px,60px);opacity:0}}
+.oWrite{stroke-dasharray:240;animation:oWrite 2.8s ease-in-out infinite}@keyframes oWrite{0%{stroke-dashoffset:240}60%,90%{stroke-dashoffset:0}100%{stroke-dashoffset:0;opacity:0}}
+.oPen{offset-path:path('M40 80 C 60 40, 80 40, 95 70 S 130 100, 150 60 S 185 40, 200 70');offset-rotate:0deg;animation:oPen 2.8s ease-in-out infinite}@keyframes oPen{0%{offset-distance:0%}60%,90%{offset-distance:100%;opacity:1}100%{offset-distance:100%;opacity:0}}
+.oKey rect{transition:fill .2s}.oKey{animation:oKey 2.25s ease-in-out infinite}@keyframes oKey{0%,100%{transform:none}8%{transform:translateY(3px)}16%{transform:none}}
+.oKey{transform-box:fill-box}
+.oB0,.oB1,.oB2{animation:oB 2.8s cubic-bezier(.22,.8,.24,1) infinite}.oB0{--dx:-14px;--dy:8px}.oB1{--dx:10px;--dy:-10px}.oB2{--dx:20px;--dy:6px}@keyframes oB{0%,25%{transform:translate(var(--dx),var(--dy)) rotate(4deg)}55%,100%{transform:none}}
+.oFrameAL{animation:oFr 2.8s ease infinite}@keyframes oFr{0%,40%{opacity:0}60%,100%{opacity:1}}
+.oWig{transform-box:fill-box;animation:oWig 2.4s ease-in-out infinite}@keyframes oWig{0%,100%{rotate:0deg}50%{rotate:-8deg}}
+.oUp{animation:oUp 1.6s ease-in-out infinite}@keyframes oUp{0%,100%{transform:translateY(4px)}50%{transform:translateY(-6px)}}
+@media (prefers-reduced-motion:reduce){#onb *,#onb{animation:none!important;transition:none!important}}
+.oFlick{animation:oFlick 2.4s cubic-bezier(.45,.05,.8,.55) infinite;transform-box:fill-box;transform-origin:center}@keyframes oFlick{0%,30%{transform:none;opacity:1}62%{transform:translate(120px,-30px) rotate(24deg) scale(.55);opacity:0}63%,100%{transform:none;opacity:0}}
+.oFl{animation:oFl 2.4s ease-in infinite}@keyframes oFl{0%,10%{transform:translate(88px,60px);opacity:0}15%{opacity:1}45%{transform:translate(150px,48px);opacity:1}55%,100%{transform:translate(160px,46px);opacity:0}}
+.oFa{animation:oFa 2.4s ease infinite}@keyframes oFa{0%,25%{opacity:0}40%,60%{opacity:1}80%,100%{opacity:0}}
+.oDown{animation:oDown 2.4s cubic-bezier(.22,.8,.24,1) infinite}@keyframes oDown{0%,25%{transform:none;opacity:1}60%{transform:translateY(46px);opacity:0}61%,100%{transform:none;opacity:0}}
+.oDf{animation:oDf 2.4s cubic-bezier(.22,.8,.24,1) infinite}@keyframes oDf{0%,15%{transform:translate(120px,40px);opacity:0}22%{opacity:1}55%{transform:translate(120px,96px);opacity:1}62%,100%{transform:translate(120px,100px);opacity:0}}
+.oRow{animation:oRow 2.8s cubic-bezier(.22,.8,.24,1) infinite}@keyframes oRow{0%,20%{transform:none}55%,85%{transform:translateY(40px)}100%{transform:none}}
+@media (prefers-reduced-motion:reduce){#onb *,#onb{animation:none!important;transition:none!important}}
+#onb{padding-top:max(16px,calc(env(safe-area-inset-top) + 8px));padding-bottom:max(16px,calc(env(safe-area-inset-bottom) + 8px));padding-left:max(16px,env(safe-area-inset-left));padding-right:max(16px,env(safe-area-inset-right))}
+#onb .onbR button{justify-content:center}

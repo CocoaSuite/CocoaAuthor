@@ -7,6 +7,8 @@ import { renderLibrary, importData, importPicked } from './ui/library'
 import { openWorkspace, type WS } from './ui/workspace'
 import { native, nativeFiles } from './storage/store'
 import { h } from './util'
+import { installTouch } from './ui/touch'
+import { maybeOnboard } from './ui/onboarding'
 
 injectFonts()
 const app = document.getElementById('app')!
@@ -25,6 +27,8 @@ const show = () => {
 }
 window.addEventListener('hashchange', show)
 show()
+installTouch()
+busy.then(() => maybeOnboard())
 
 native?.onOpenFile(f => importData(f.name, new Uint8Array(f.data), nativeFiles(f.files)))
 
