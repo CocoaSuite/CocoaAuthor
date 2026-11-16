@@ -14,7 +14,11 @@ const safe = id => { if (!/^[\w-]{1,64}$/.test(String(id))) throw new Error('Inv
 const docDir = id => path.join(LIB(), safe(id))
 
 let win = null
-const appIcon = setupAppIcon({ name: 'CocoaAuthor', appId: 'com.cocoasuite.cocoaauthor' })
+const appIcon = setupAppIcon({
+  name: 'CocoaAuthor', appId: 'com.cocoasuite.cocoaauthor',
+  // The installer's file classes (package.json fileAssociations) and their icons
+  fileTypes: { 'CocoaAuthor Document': 'cocoaauthor', 'CocoaAuthor.pdf': 'pdf' }
+})
 const pendingFiles = []
 const launchFiles = []
 

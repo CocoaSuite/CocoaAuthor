@@ -29,7 +29,7 @@ export function appSettingsDialog() {
   const m = modal('Settings', [
     h('div', { class: 'sec' }, 'App icon'),
     pick,
-    h('div', { class: 'hint' }, win ? 'Used for CocoaAuthor windows, the taskbar and the CocoaAuthor shortcuts on this computer.' : 'Used for CocoaAuthor windows and the Dock.'),
+    h('div', { class: 'hint' }, win ? 'Used for CocoaAuthor windows, the taskbar, CocoaAuthor shortcuts and the icons of CocoaAuthor documents and PDFs that open in it.' : 'Used for CocoaAuthor windows and the Dock.'),
     win ? h('div', { class: 'sec' }, 'Shortcut') : '',
     win ? h('div', { class: 'fr' }, h('button', { onclick: async () => {
       try { await n.createShortcut!(); toast('Shortcut created on the desktop') } catch (e: any) { toast(e.message, 4000) }
