@@ -29,7 +29,12 @@ export interface Native {
   viewPdf?(name: string, data: ArrayBuffer): Promise<void>
   pdfInfo?(token: string): Promise<{ name: string; data: ArrayBuffer; path: string | null } | null>
   savePdf?(token: string, data: ArrayBuffer, as: boolean): Promise<string | null>
+  appIcon?(): Promise<AppIconTheme>
+  setAppIcon?(t: AppIconTheme): Promise<AppIconTheme>
+  createShortcut?(): Promise<string>
 }
+
+export type AppIconTheme = 'amethyst' | 'midnight'
 
 export const native: Native | undefined = (window as any).cocoaNative
 

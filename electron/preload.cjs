@@ -15,5 +15,8 @@ contextBridge.exposeInMainWorld('cocoaNative', {
   setTitle: t => ipcRenderer.send('setTitle', t),
   viewPdf: (name, data) => ipcRenderer.invoke('viewPdf', name, data),
   pdfInfo: t => ipcRenderer.invoke('pdfInfo', t),
-  savePdf: (t, data, as) => ipcRenderer.invoke('savePdf', t, data, as)
+  savePdf: (t, data, as) => ipcRenderer.invoke('savePdf', t, data, as),
+  appIcon: () => ipcRenderer.invoke('appIcon'),
+  setAppIcon: t => ipcRenderer.invoke('setAppIcon', t),
+  createShortcut: () => ipcRenderer.invoke('createShortcut').catch(e => { throw new Error(String(e.message).replace(/^Error invoking remote method '\w+': (Error: )?/, '')) })
 })
