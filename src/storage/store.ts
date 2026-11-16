@@ -166,6 +166,15 @@ export async function saveFile(name: string, data: Uint8Array | Blob, ext: strin
   }
   const blob = new Blob([buf as BlobPart], { type: ext === 'cocoaauthor' ? 'application/octet-stream' : Object.keys(pickerTypes[ext]?.accept || { 'application/octet-stream': [] })[0] })
   const w = window as any
+  // iPhone and iPad: hand the file to the share sheet (Save to Files, Mail, AirDrop…)
+  const ios = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.maxTouchPoints > 1 && /Mac/.test(navigator.platform))
+  if (ios && navigator.canShare) {
+    const file = new File([blob], name, { type: blob.type })
+    if (navigator.canShare({ files: [file] })) {
+      try { await navigator.share({ files: [file] }); return true }
+      catch (e: any) { if (e?.name === 'AbortError') return false }
+    }
+  }
   if (w.showSaveFilePicker && window.self === window.top) {
     try {
       const hdl = await w.showSaveFilePicker({ suggestedName: name, types: pickerTypes[ext] ? [pickerTypes[ext]] : undefined })

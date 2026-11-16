@@ -302,3 +302,47 @@ aside{background:var(--panel);overflow:auto;min-height:0;min-width:0}
 .findp .fcount.bad{color:#e07a7a}
 .findp .ftog{transition:none}
 .findp.rep .ftog{color:#8ab4ff}
+
+/* iPhone and iPad: safe areas, no zoom on focus, bigger touch targets */
+body{padding:env(safe-area-inset-top) env(safe-area-inset-right) 0 env(safe-area-inset-left);-webkit-text-size-adjust:100%}
+#app{height:100%}
+#desk{padding-bottom:env(safe-area-inset-bottom)}
+@media (pointer:coarse){
+ input,select,textarea{font-size:16px!important}
+ #tools>*{flex:none}
+ #tools select,#tools .size{height:34px}
+ #tools .fsel{width:150px}
+ #tools .ssel{width:132px}
+ #tools .size{width:60px}
+ .ic,.mt{min-height:34px}
+ .lr{min-height:38px}
+ .lr .lb{display:block}
+ .lr .pg{display:none}
+ .dd button,.ctx>button{padding:11px 14px;font-size:15px}
+ #outline,#insp,#lay{-webkit-touch-callout:none}
+}
+
+/* tablet: the Outline and Inspector float over the page, swipe them toward the edge to hide, in from the edge to show (same as CocoaCanvas) */
+@media (min-width:721px) and (max-width:1100px),(min-width:721px) and (pointer:coarse){
+ .tgl-only{display:inline-flex!important}
+ #mid,#mid.no-l,#mid.no-r,#mid.no-l.no-r,#mid.show-l,#mid.show-r{grid-template-columns:minmax(0,1fr)}
+ #outline{position:absolute;left:12px;top:12px;bottom:calc(12px + env(safe-area-inset-bottom));width:250px;z-index:30;border:1px solid var(--line);border-radius:16px;box-shadow:0 10px 30px rgba(0,0,0,.45)}
+ #insp{position:absolute;right:12px;top:12px;bottom:calc(12px + env(safe-area-inset-bottom));width:290px;z-index:30;border:1px solid var(--line);border-radius:16px;box-shadow:0 10px 30px rgba(0,0,0,.45);overflow:hidden}
+ #outline,#insp{transition:transform .34s cubic-bezier(.22,.8,.24,1),opacity .3s,visibility 0s}
+ body.lcol #outline,body.icol #insp{opacity:0;visibility:hidden;pointer-events:none;transition:transform .34s cubic-bezier(.22,.8,.24,1),opacity .3s .04s,visibility 0s .34s}
+ body.lcol #outline{transform:translateX(calc(-100% - 16px))}
+ body.icol #insp{transform:translateX(calc(100% + 16px))}
+ @media (prefers-reduced-motion:reduce){#outline,#insp{transition:none!important}}
+ #outline,#insp,#olist,#insp .ib{touch-action:pan-y}
+ #mid .spellp,#mid .findp{right:314px}
+ body.icol #mid .spellp,body.icol #mid .findp{right:16px}
+}
+
+/* iPhone: keep the top bar inside the screen */
+@media (max-width:700px){
+ #top{gap:2px;padding:0 6px}
+ #top .zoom,#top .status{display:none}
+ #top button>span{display:none}
+ .brand img{height:24px}
+ #dname{flex:1 1 60px;margin-left:0}
+}

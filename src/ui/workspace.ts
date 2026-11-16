@@ -21,6 +21,8 @@ import { spellingPanel, editDictionary } from '../spell/panel'
 import { cropDialog, cropDialogFor } from './cropdialog'
 import { findPanel } from './findpanel'
 import { insertFloatingImage, insertTextBox } from './framecmds'
+import { tabletToggle, pinchZoom } from './touch'
+import { runOnboarding } from './onboarding'
 
 export interface WS { dispose(): Promise<void> }
 
@@ -85,6 +87,7 @@ export async function openWorkspace(app: HTMLElement, id: string): Promise<WS | 
   const setZoom = (z: number) => { dv.setZoom(Math.max(0.3, Math.min(3, z))); zl.textContent = Math.round(dv.zoom * 100) + '%' }
   const fitWidth = () => { const L = dv.layout; if (L) setZoom((desk.clientWidth - 48) / (L.flowW * 4 / 3)) }
   zl.textContent = Math.round(dv.zoom * 100) + '%'
+  pinchZoom(desk, () => dv.zoom, setZoom)
 
   const exportBtn = h('button', { class: 'pri', onclick: () => dropdown(exportBtn, [
     { label: 'PDF document', icon: icon('pdf'), run: () => exportPDF(doc, ed) },
@@ -132,8 +135,8 @@ export async function openWorkspace(app: HTMLElement, id: string): Promise<WS | 
   ]
 
   const spelling = () => { if (settingsOf(ed).spell === false) setSettings(ed, { spell: true }); spellingPanel(ed, mid) }
-  const toggleL = () => mid.classList.toggle(innerWidth < 1000 ? 'show-l' : 'no-l')
-  const toggleR = () => mid.classList.toggle(innerWidth < 1000 ? 'show-r' : 'no-r')
+  const toggleL = () => { if (!tabletToggle('l')) mid.classList.toggle(innerWidth < 1000 ? 'show-l' : 'no-l') }
+  const toggleR = () => { if (!tabletToggle('r')) mid.classList.toggle(innerWidth < 1000 ? 'show-r' : 'no-r') }
 
   const menus = menuBar([
     { label: 'File', items: () => [
@@ -179,10 +182,12 @@ export async function openWorkspace(app: HTMLElement, id: string): Promise<WS | 
       { label: 'Zoom in', icon: icon('zin'), run: () => setZoom(dv.zoom * 1.15) },
       { label: 'Zoom out', icon: icon('zout'), run: () => setZoom(dv.zoom / 1.15) },
       { label: 'Actual size', run: () => setZoom(1) },
-      { label: 'Fit width', run: fitWidth }
+      { label: 'Fit width', run: fitWidth },
+      'sep',
+      { label: 'Show tutorial', icon: icon('info'), run: () => runOnboarding() }
     ] }
   ])
-  const showR = () => { mid.classList.remove('no-r'); if (innerWidth < 1000) mid.classList.add('show-r') }
+  const showR = () => { if (tabletToggle('r', true)) return; mid.classList.remove('no-r'); if (innerWidth < 1000) mid.classList.add('show-r') }
 
   top.append(
     h('button', { class: 'brand', title: 'Document library', onclick: () => go('/') }, h('img', { src: 'logo.svg', alt: 'CocoaAuthor' })),
