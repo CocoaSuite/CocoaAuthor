@@ -5,7 +5,7 @@ import { FONTS, PAGE_SIZES, STYLE_KEYS, STYLE_NAMES, OT_FEATURES, defaultStyles,
 import { customs, findCustom, isBuiltin, resolvePara, resolveChar, rootKey } from '../model/styles'
 import { floatImage, unfloatImage } from './framecmds'
 import { promptBox, confirmBox } from './dialogs'
-import { settingsOf, stylesOf, setSettings, setStyles, currentBlockStyle, setBlockStyle, setCharStyle, currentCharStyle, sectionAt, setSectionAttr, removeSectionBreak, selectedNode, findParent, replaceImage, allTargets, docStats, type BlockStyle } from './commands'
+import { settingsOf, stylesOf, setSettings, setStyles, currentBlockStyle, selBlock, setBlockStyle, setCharStyle, currentCharStyle, sectionAt, setSectionAttr, removeSectionBreak, selectedNode, findParent, replaceImage, allTargets, docStats, type BlockStyle } from './commands'
 import { xrefText } from '../layout/plugin'
 import { cropDialog } from './cropdialog'
 import { CROP_PRESETS } from '../editor/imagegeom'
@@ -159,7 +159,7 @@ export function inspectorPanel(ed: Editor, dv: DocView, doc: CADocument, onMeta:
     for (const c of customs(SS).filter(c => c.type === 'para')) { const t = resolvePara(SS, c.id); sp.append(h('button', { class: cur === c.id ? 'on' : '', onclick: () => setBlockStyle(ed, c.id) }, h('span', {}, c.name), h('span', {}, `${t.font.split(' ')[0]} ${t.size}`))) }
     body.append(sp)
 
-    const p = ed.state.selection.$from.parent
+    const p = selBlock(ed)
     if (p.type.name === 'paragraph' && p.attrs.kind === 'caption') {
       body.append(fr('Numbering', sel([['figure', 'Figure'], ['table', 'Table'], ['', 'None']], p.attrs.label || '', v => ed.chain().focus().updateAttributes('paragraph', { label: v || null }).run())))
     }

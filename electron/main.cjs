@@ -198,6 +198,12 @@ ipcMain.handle('openFile', async (e, filters) => {
   if (isPdf(r.filePaths[0])) { openPdf(r.filePaths[0]); return { name: path.basename(r.filePaths[0]), viewed: true } }
   return readOpened(r.filePaths[0])
 })
+ipcMain.handle('saveFile', async (e, name, data, filters) => {
+  const r = await dialog.showSaveDialog(BrowserWindow.fromWebContents(e.sender), { defaultPath: path.join(app.getPath('documents'), name), filters })
+  if (r.canceled || !r.filePath) return null
+  await writeAtomic(r.filePath, Buffer.from(data))
+  return r.filePath
+})
 // A PDF dropped onto the library: no file path, so the first save asks where to put it.
 ipcMain.handle('viewPdf', async (_e, name, data) => {
   const t = token()

@@ -33,9 +33,17 @@ export type BlockStyle = 'body' | 'title' | 'subtitle' | 'caption' | 'h1' | 'h2'
 const BLOCK_STYLES = new Set(['body', 'title', 'subtitle', 'caption', 'h1', 'h2', 'h3', 'h4'])
 
 /** The paragraph style at the cursor: a custom style id when one is applied, otherwise the built-in style. */
+/** The paragraph or heading the selection starts in, even when it starts outside one (select all, a section edge). */
+export function selBlock(ed: Editor): PMNode {
+  const { from, to, $from } = ed.state.selection
+  if ($from.parent.isTextblock) return $from.parent
+  let found: PMNode | null = null
+  ed.state.doc.nodesBetween(from, Math.max(to, from + 1), n => { if (found) return false; if (n.isTextblock) { found = n; return false } return true })
+  return found || $from.parent
+}
+
 export function currentBlockStyle(ed: Editor): string {
-  const { $from } = ed.state.selection
-  const n = $from.parent
+  const n = selBlock(ed)
   if ((n.type.name === 'heading' || n.type.name === 'paragraph') && n.attrs.pstyle && findCustom(stylesOf(ed), n.attrs.pstyle)) return n.attrs.pstyle
   if (n.type.name === 'heading') return ('h' + n.attrs.level) as BlockStyle
   if (n.type.name === 'paragraph') return n.attrs.kind || 'body'
