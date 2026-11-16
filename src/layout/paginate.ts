@@ -23,6 +23,8 @@ interface Unit {
   top: number; bottom: number; brk: B; sec: number
   keepNext?: boolean; force?: boolean; forceBefore?: boolean; fn?: string[]
   blk?: number; li?: number; ln?: number
+  /** Space before the block, kept at the top of a page when the document asks for it (Word does). */
+  mt?: number
 }
 
 export const FN_SEP = 10
@@ -126,8 +128,9 @@ function onePass(view: EditorView, root: HTMLElement, opts: { scale: number; gap
     const rr = R(el)
     const { lines, texts } = measureLines(el)
     const b = blk++
+    const mt = s.spaceAtTop ? parseFloat(getComputedStyle(el).marginTop) || 0 : 0
     if (lines.length <= 1) {
-      const u: Unit = { top: rr.top, bottom: rr.bottom, brk: { kind: 'w', pos }, sec, blk: b, li: 0, ln: 1 }
+      const u: Unit = { top: rr.top, bottom: rr.bottom, brk: { kind: 'w', pos }, sec, blk: b, li: 0, ln: 1, mt }
       out.push(u)
     } else {
       const cs = getComputedStyle(el)
@@ -139,7 +142,7 @@ function onePass(view: EditorView, root: HTMLElement, opts: { scale: number; gap
       for (let k = 0; k < lines.length; k++) {
         const th = bounds[k]
         out.push({
-          top: k === 0 ? rr.top : bounds[k], bottom: k === lines.length - 1 ? Math.max(rr.bottom, bounds[k + 1]) : bounds[k + 1], sec, blk: b, li: k, ln: lines.length,
+          top: k === 0 ? rr.top : bounds[k], bottom: k === lines.length - 1 ? Math.max(rr.bottom, bounds[k + 1]) : bounds[k + 1], sec, blk: b, li: k, ln: lines.length, mt: k === 0 ? mt : 0,
           brk: k === 0 ? { kind: 'w', pos } : { kind: 'i', blockPos: pos, resolve: () => lineStart(texts, th) }
         })
       }
@@ -292,7 +295,7 @@ function onePass(view: EditorView, root: HTMLElement, opts: { scale: number; gap
       let force = false
       let i = 0
       if (!list.length) return
-      const firstH = p.cTop - list[0].top - shift
+      const firstH = p.cTop - list[0].top - shift + (list[0].mt || 0)
       addSpacer(list[0], Math.max(0, firstH))
       if (list[0].fn) p.fn.push(...list[0].fn)
       force = !!list[0].force
@@ -323,7 +326,7 @@ function onePass(view: EditorView, root: HTMLElement, opts: { scale: number; gap
           p.fnH = fa(p.fn)
           p = newPage(si, secs[si].land, false)
           const uj = list[j]
-          addSpacer(uj, Math.max(0, p.cTop - (uj.top + shift)), pos)
+          addSpacer(uj, Math.max(0, p.cTop - (uj.top + shift) + (uj.brk.kind === 'w' ? uj.mt || 0 : 0)), pos)
           if (uj.fn) p.fn.push(...uj.fn)
           force = !!uj.force
           start = j

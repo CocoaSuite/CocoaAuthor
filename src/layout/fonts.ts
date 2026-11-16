@@ -1,12 +1,16 @@
-import { FONTS, FONT_METRICS, fontKey } from '../model/types'
+import { FONTS, FONT_METRICS, fontKey, fontWeights } from '../model/types'
 
-const WEIGHTS = [400, 500, 600, 700]
 let injected = false
 const cache = new Map<string, Promise<Uint8Array>>()
 
+/** The file the browser would pick for a weight (CSS font matching), so the PDF uses the same face as the screen. */
 export const fontFile = (key: string, weight: number, italic: boolean) => {
-  const w = WEIGHTS.reduce((a, b) => (Math.abs(b - weight) < Math.abs(a - weight) ? b : a), 400)
-  return `${key}-${w}${italic ? 'i' : ''}.ttf`
+  const ws = fontWeights(key)
+  let w: number
+  if (ws.includes(weight)) w = weight
+  else if (weight > 500) w = ws.filter(x => x > weight).sort((a, b) => a - b)[0] ?? ws.filter(x => x < weight).sort((a, b) => b - a)[0]
+  else w = ws.filter(x => x < weight).sort((a, b) => b - a)[0] ?? ws.filter(x => x > weight).sort((a, b) => a - b)[0]
+  return `${key}-${w ?? 400}${italic ? 'i' : ''}.ttf`
 }
 
 export const fontURL = (file: string) => new URL('fonts/' + file, document.baseURI).href
@@ -17,7 +21,7 @@ export function injectFonts() {
   let css = ''
   for (const f of FONTS) {
     const m = FONT_METRICS[f.key]
-    for (const w of WEIGHTS) for (const it of [false, true]) {
+    for (const w of fontWeights(f.key)) for (const it of [false, true]) {
       css += `@font-face{font-family:"${f.name}";src:url("${fontURL(fontFile(f.key, w, it).replace('.ttf', '.woff2'))}") format("woff2");font-weight:${w};font-style:${it ? 'italic' : 'normal'};font-display:swap;ascent-override:${(m.asc * 100).toFixed(3)}%;descent-override:${(m.desc * 100).toFixed(3)}%;line-gap-override:0%}\n`
     }
   }

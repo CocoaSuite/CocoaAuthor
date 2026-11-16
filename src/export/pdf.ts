@@ -271,7 +271,7 @@ export async function buildPDF(dv: DocView, doc: CADocument, progress: PDFProgre
       if (rs.length === 1) {
         const r = rs[0]
         const x = X(r.left), top = Y(r.top), bottom = Y(r.bottom)
-        if (!justify && cur && Math.abs(cur.top - top) < 0.5 && x >= cur.right - 0.5) {
+        if (!justify && cur && Math.abs(cur.top - top) < 0.5 && x >= cur.right - 0.5 && !data.slice(cur.end, m.index).includes('\t')) {
           cur.str += data.slice(cur.end, m.index) + m[0]
           cur.end = m.index + m[0].length
           cur.right = X(r.right)

@@ -1,7 +1,7 @@
 import { spellPlugin } from '../spell/plugin'
 import { searchPlugin } from './search'
 import { barPlugin, applyBarJoins } from '../layout/bars'
-import { FrameLayer, wrapPlugin, applyWraps, sameWraps, wrapKey, framesOf } from '../layout/frames'
+import { FrameLayer, wrapPlugin, applyWraps, sameWraps, wrapKey, framesOf, resolveAnchors } from '../layout/frames'
 import { Editor } from '@tiptap/core'
 import { extensions } from './extensions'
 import { paginate, renderPages, type Layout, type DocMetaLite } from '../layout/paginate'
@@ -117,6 +117,7 @@ export class DocView {
       if (this.zwrap) this.root.style.transform = `scale(${this.scale})`
       const opts = { scale: this.scale, gap: GAP, mode: this.mode, meta: this.meta() }
       this.layout = paginate(v, this.root, opts)
+      if (resolveAnchors(v, this.root, this.scale, this.layout)) this.layout = paginate(v, this.root, opts)
       // Text wrap around frames changes the flow, so repeat until the wrap settles.
       if (framesOf(v.state.doc).length || wrapKey.getState(v.state)?.wraps.length) {
         for (let k = 0; k < 3; k++) {

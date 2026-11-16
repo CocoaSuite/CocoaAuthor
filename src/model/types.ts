@@ -27,6 +27,10 @@ export interface FrameData {
   border?: number
   borderColor?: string
   valign?: 'top' | 'middle' | 'bottom'
+  /** Set on import from Word for objects positioned relative to a paragraph: the id of a bookmark in that paragraph
+   * and the offset from its top. The first layout turns this into a page and y, then drops the bookmark. */
+  anchor?: string
+  dy?: number
 }
 
 export interface TextStyleDef {
@@ -118,6 +122,8 @@ export interface PageSettings {
   hyphenate: boolean
   spell: boolean
   spellIgnore: string[]
+  /** Keep a paragraph's space before when it starts a page, as Word does (set for imported Word documents). */
+  spaceAtTop?: boolean
 }
 
 export type DocStatus = 'draft' | 'review' | 'final'
@@ -227,27 +233,52 @@ export function defaultSettings(): PageSettings {
   }
 }
 
-export const FONTS: { name: string; key: string; kind: string }[] = [
+/**
+ * Fonts the app ships. The Word family is metric-compatible with Microsoft's fonts (same widths and line heights),
+ * served under the Microsoft names so imported Word documents break lines where Word does and export back unchanged.
+ * `weights` lists the files a family has; absent means 400 to 700.
+ */
+export const FONTS: { name: string; key: string; kind: string; weights?: number[]; word?: boolean }[] = [
   { name: 'Inter', key: 'inter', kind: 'Sans' },
   { name: 'Source Serif 4', key: 'sourceserif', kind: 'Serif' },
   { name: 'Lora', key: 'lora', kind: 'Serif' },
   { name: 'Playfair Display', key: 'playfair', kind: 'Display' },
-  { name: 'JetBrains Mono', key: 'jetbrainsmono', kind: 'Mono' }
+  { name: 'JetBrains Mono', key: 'jetbrainsmono', kind: 'Mono' },
+  { name: 'Calibri', key: 'carlito', kind: 'Word', weights: [400, 700], word: true },
+  { name: 'Cambria', key: 'caladea', kind: 'Word', weights: [400, 700], word: true },
+  { name: 'Arial', key: 'arimo', kind: 'Word', word: true },
+  { name: 'Times New Roman', key: 'tinos', kind: 'Word', weights: [400, 700], word: true },
+  { name: 'Courier New', key: 'cousine', kind: 'Word', weights: [400, 700], word: true }
 ]
 
+/** Ascent and descent (descent includes the line gap) as a share of the font size; together they are Word's single line. */
 export const FONT_METRICS: Record<string, { asc: number; desc: number }> = {
   inter: { asc: 0.96875, desc: 0.2412109375 },
   sourceserif: { asc: 1.036, desc: 0.335 },
   lora: { asc: 1.006, desc: 0.274 },
   playfair: { asc: 1.082, desc: 0.251 },
-  jetbrainsmono: { asc: 1.02, desc: 0.3 }
+  jetbrainsmono: { asc: 1.02, desc: 0.3 },
+  carlito: { asc: 0.9521484375, desc: 0.2685546875 },
+  caladea: { asc: 0.9502, desc: 0.2222 },
+  arimo: { asc: 0.9052734375, desc: 0.244140625 },
+  tinos: { asc: 0.89111328125, desc: 0.2587890625 },
+  cousine: { asc: 0.83251953125, desc: 0.30029296875 }
+}
+
+/** Other names for the shipped fonts, so pasted or imported text finds the right one. */
+const FONT_ALIASES: Record<string, string> = {
+  carlito: 'carlito', 'calibri light': 'carlito', caladea: 'caladea', arimo: 'arimo', 'liberation sans': 'arimo', helvetica: 'arimo', 'helvetica neue': 'arimo',
+  tinos: 'tinos', 'liberation serif': 'tinos', times: 'tinos', cousine: 'cousine', 'liberation mono': 'cousine', courier: 'cousine'
 }
 
 export function fontKey(family: string): string {
   const f = family.split(',')[0].trim().replace(/["']/g, '').toLowerCase()
   const hit = FONTS.find(x => x.name.toLowerCase() === f || x.key === f)
-  return hit ? hit.key : 'inter'
+  return hit ? hit.key : FONT_ALIASES[f] || 'inter'
 }
+
+/** Font files that exist for a family. */
+export const fontWeights = (key: string) => FONTS.find(f => f.key === key)?.weights || [400, 500, 600, 700]
 
 export function pageDims(s: PageSettings, landscape = s.landscape): [number, number] {
   return landscape ? [s.height, s.width] : [s.width, s.height]

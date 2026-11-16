@@ -6,6 +6,8 @@ import Heading from '@tiptap/extension-heading'
 import Link from '@tiptap/extension-link'
 import { TextStyle, Color, FontFamily, FontSize } from '@tiptap/extension-text-style'
 import Highlight from '@tiptap/extension-highlight'
+import Superscript from '@tiptap/extension-superscript'
+import Subscript from '@tiptap/extension-subscript'
 import TextAlign from '@tiptap/extension-text-align'
 import { Table, TableRow, TableCell, TableHeader } from '@tiptap/extension-table'
 import { Plugin, PluginKey, TextSelection } from '@tiptap/pm/state'
@@ -457,6 +459,45 @@ export const ParaFormat = Extension.create({
   }
 })
 
+const dataAttr = (k: string) => ({
+  default: null,
+  parseHTML: (el: HTMLElement) => el.getAttribute('data-' + k) || null,
+  renderHTML: (a: any) => (a[k] ? { ['data-' + k]: a[k] } : {})
+})
+
+/** Number format and marker pattern for lists (from Word: "a)", "(i)", "1.1."), and the bullet character. */
+export const ListFormat = Extension.create({
+  name: 'caListFormat',
+  addGlobalAttributes() {
+    return [
+      { types: ['orderedList'], attributes: { fmt: dataAttr('fmt'), pat: dataAttr('pat'), tight: flag('tight') } },
+      { types: ['bulletList'], attributes: { char: dataAttr('char'), tight: flag('tight') } }
+    ]
+  }
+})
+
+/** Per-table grid colour (or no grid) and cell padding in pt, so tables from Word keep their look. */
+export const TableFormat = Extension.create({
+  name: 'caTableFormat',
+  addGlobalAttributes() {
+    return [{
+      types: ['table'],
+      attributes: {
+        grid: {
+          default: null,
+          parseHTML: (el: HTMLElement) => el.getAttribute('data-grid') || null,
+          renderHTML: (a: any) => (a.grid ? { 'data-grid': a.grid, style: `--grid:${a.grid === 'none' ? 'transparent' : a.grid}` } : {})
+        },
+        pad: {
+          default: null,
+          parseHTML: (el: HTMLElement) => { const v = el.getAttribute('data-pad'); return v ? v.split(' ').map(Number) : null },
+          renderHTML: (a: any) => (Array.isArray(a.pad) && a.pad.length === 4 ? { 'data-pad': a.pad.join(' '), style: `--cp:${a.pad.map((x: number) => x + 'px').join(' ')}` } : {})
+        }
+      }
+    }]
+  }
+})
+
 /** Manual kerning and tracking: letter spacing on a run of text, in em. */
 export const Spacing = Extension.create({
   name: 'caSpacing',
@@ -528,10 +569,10 @@ export function extensions() {
     CADoc, Section, Para, Head, Callout, PageBreak, Img, Chart, Toc, Footnote, Xref, Bookmark, Hint, CharStyle,
     Link.configure({ openOnClick: false, autolink: true, linkOnPaste: true, protocols: ['mailto', 'tel'], HTMLAttributes: { target: null, rel: null, class: null } }),
     TextStyle, Color, FontFamily, FontSize,
-    Highlight.configure({ multicolor: true }),
+    Highlight.configure({ multicolor: true }), Superscript, Subscript,
     TextAlign.configure({ types: ['heading', 'paragraph'] }),
     Table.configure({ resizable: false, cellMinWidth: 30 }), TableRow, HeadCell, Cell,
-    ParaFormat, Spacing, Ids, LayoutExt, RuQuotes
+    ParaFormat, Spacing, ListFormat, TableFormat, Ids, LayoutExt, RuQuotes
   ]
 }
 
@@ -545,8 +586,8 @@ export function boxExtensions() {
     Para, Head, CharStyle,
     Link.configure({ openOnClick: false, autolink: true, protocols: ['mailto', 'tel'], HTMLAttributes: { target: null, rel: null, class: null } }),
     TextStyle, Color, FontFamily, FontSize,
-    Highlight.configure({ multicolor: true }),
+    Highlight.configure({ multicolor: true }), Superscript, Subscript,
     TextAlign.configure({ types: ['heading', 'paragraph'] }),
-    ParaFormat, Spacing, RuQuotes
+    ParaFormat, Spacing, ListFormat, RuQuotes
   ]
 }

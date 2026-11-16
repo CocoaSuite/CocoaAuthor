@@ -20,7 +20,8 @@ It runs in the browser (hosted on GitHub Pages) and as a desktop app for Windows
 - Typography: kerning and ligatures on by default, manual kerning and tracking (Alt+Left/Right), OpenType small caps, old-style and tabular figures, and English and Russian hyphenation
 - PDF export with embedded fonts, kerning, OpenType features, hyphenation, selectable text, working links, a clickable table of contents, bookmarks and metadata
 - Word export with native heading styles, lists, tables, images, hyperlinks, bookmarks, cross-references, footnotes, endnotes, table of contents, headers, footers and optional embedded fonts
-- Word import (text, headings, lists, tables, images, links, notes and page layout)
+- Word import that keeps the layout: styles, fonts, line and paragraph spacing, numbered and bulleted lists, tables (column widths, merged cells, shading, borders), sections and orientation, headers and footers with page numbers, floating pictures and text boxes, charts, links, cross-references, captions, table of contents, footnotes and endnotes, and tracked changes (accepted)
+- Word-compatible fonts (metric-compatible with Calibri, Cambria, Arial, Times New Roman and Courier New), so Word documents break lines and pages where Word does
 - Markdown import (`.md`, or a `.zip` with its images): front matter, headings, lists, task lists, tables, footnotes, quotes, GitHub alerts as callouts, code, images with captions, links between headings and page breaks (`\pagebreak`, `\newpage` or `<!-- pagebreak -->`)
 - Find and replace (Ctrl+F, Ctrl+H) with match case, whole words and regular expressions
 - Spell checking for English (US and UK) and Russian, also in mixed-language documents: suggestions on right-click, a spelling panel (F7), a personal dictionary and per-document ignored words

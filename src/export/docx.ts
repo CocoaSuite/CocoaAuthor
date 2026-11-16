@@ -6,7 +6,7 @@ import {
   EndnoteReferenceRun, Header, Footer, Textbox, HorizontalPositionRelativeFrom, VerticalPositionRelativeFrom, TextWrappingType, TextWrappingSide, PageNumber, TabStopType, NumberFormat, LevelFormat, PageOrientation, Tab, VerticalAlignTable, TableLayoutType
 } from 'docx'
 import type { CADocument, PageSettings, StyleSet, TextStyleDef, HF, FrameData } from '../model/types'
-import { defaultStyles, pageDims, fontKey, FONTS } from '../model/types'
+import { defaultStyles, pageDims, fontKey, FONTS, FONT_METRICS } from '../model/types'
 import { getSettings, collectTargets, xrefText, textOf } from '../layout/plugin'
 import { fontBytes, fontFile } from '../layout/fonts'
 import { assets } from '../editor/registry'
@@ -26,6 +26,16 @@ const bm = (id: string) => ('b_' + String(id).replace(/[^A-Za-z0-9_]/g, '_')).sl
 const ALIGN: Record<string, any> = { left: AlignmentType.LEFT, center: AlignmentType.CENTER, right: AlignmentType.RIGHT, justify: AlignmentType.JUSTIFIED }
 const NUMFMT: Record<string, any> = { decimal: NumberFormat.DECIMAL, 'lower-roman': NumberFormat.LOWER_ROMAN, 'upper-roman': NumberFormat.UPPER_ROMAN, 'lower-alpha': NumberFormat.LOWER_LETTER, 'upper-alpha': NumberFormat.UPPER_LETTER }
 
+/**
+ * Word's "multiple" line spacing counts single lines of the font, CocoaAuthor's line height counts font sizes.
+ * For the Word-compatible fonts the single line is known exactly, so convert; other fonts keep the old mapping.
+ */
+function wordLine(lh: number, font?: string): number {
+  const f = font ? FONTS.find(x => x.name === font) : undefined
+  const m = f?.word ? FONT_METRICS[f.key] : null
+  return Math.round(240 * (m ? lh / (m.asc + m.desc) : lh))
+}
+
 function runStyle(t: TextStyleDef) {
   return { font: t.font, size: hp(t.size), bold: t.weight >= 600, italics: t.italic, color: hex(t.color), allCaps: t.caps, smallCaps: t.smcp || undefined, kern: t.kern === false ? undefined : hp(8), characterSpacing: t.tracking ? Math.round(t.tracking * t.size * 20) : undefined }
 }
@@ -33,7 +43,7 @@ function paraStyle(t: TextStyleDef) {
   const indent: any = {}
   if (t.indent) indent.left = tw(t.indent)
   if (t.firstLine) { if (t.firstLine > 0) indent.firstLine = tw(t.firstLine); else indent.hanging = tw(-t.firstLine) }
-  return { spacing: { before: tw(t.before), after: tw(t.after), line: Math.round(240 * t.lineHeight) }, alignment: ALIGN[t.align], ...(Object.keys(indent).length ? { indent } : {}) }
+  return { spacing: { before: tw(t.before), after: tw(t.after), line: wordLine(t.lineHeight, t.font), lineRule: 'auto' as any }, alignment: ALIGN[t.align], ...(Object.keys(indent).length ? { indent } : {}) }
 }
 /** Run properties for just what a character style sets. */
 function charRun(t: Partial<TextStyleDef>) {
@@ -52,7 +62,7 @@ const WORD_ID: Record<string, string> = { body: 'Normal', title: 'Title', subtit
 const psId = (id: string) => 'CS_' + cssId(id)
 const csId = (id: string) => 'CC_' + cssId(id)
 
-function pfmt(a: any, base: { indent?: any } = {}) {
+function pfmt(a: any, base: { indent?: any } = {}, font?: string) {
   const o: any = {}
   const left = a.left != null ? a.left : a.indent ? a.indent * 18 : null
   if (left != null || a.right != null || a.firstLine != null) {
@@ -65,7 +75,7 @@ function pfmt(a: any, base: { indent?: any } = {}) {
     o.spacing = {}
     if (a.before != null) o.spacing.before = tw(a.before)
     if (a.after != null) o.spacing.after = tw(a.after)
-    if (a.lh != null) o.spacing.line = Math.round(240 * a.lh)
+    if (a.lh != null) { o.spacing.line = wordLine(a.lh, font); o.spacing.lineRule = 'auto' }
   }
   if (a.keepNext) o.keepNext = true
   if (a.breakBefore) o.pageBreakBefore = true
@@ -121,6 +131,8 @@ export async function buildDOCX(doc: CADocument, layout: Layout | null, opts: { 
           else if (m.type === 'italic') o.italics = true
           else if (m.type === 'underline') o.underline = {}
           else if (m.type === 'strike') o.strike = true
+          else if (m.type === 'superscript') o.superScript = true
+          else if (m.type === 'subscript') o.subScript = true
           else if (m.type === 'hint') { o.color = '8B919B'; o.italics = true }
           else if (m.type === 'highlight') o.shading = { type: ShadingType.CLEAR, fill: hex(a.color || '#fff3a3'), color: 'auto' }
           else if (m.type === 'textStyle') {
@@ -199,7 +211,7 @@ export async function buildDOCX(doc: CADocument, layout: Layout | null, opts: { 
         out.push(new Paragraph({
           style, children: kids,
           alignment: a.textAlign ? ALIGN[a.textAlign] : undefined,
-          ...pfmt(a),
+          ...pfmt(a, {}, (a.pstyle && findCustom(S, a.pstyle) ? resolvePara(S, a.pstyle) : S.text[ctx.cell ? 'table' : ctx.list ? 'list' : a.kind === 'title' || a.kind === 'subtitle' || a.kind === 'caption' ? a.kind : 'body']).font),
           numbering: ctx.list ? { reference: ctx.list.ref, level: ctx.list.level, instance: ctx.list.instance } : undefined,
           keepNext: a.keepNext || a.kind === 'title' || a.kind === 'subtitle' || (a.kind === 'caption' && a.label === 'table') ? true : undefined,
           ...(ctx.callout ? calloutProps(ctx.callout) : {})
@@ -215,7 +227,7 @@ export async function buildDOCX(doc: CADocument, layout: Layout | null, opts: { 
         out.push(new Paragraph({
           ...(cst ? { style: cst } : { heading: [HeadingLevel.HEADING_1, HeadingLevel.HEADING_2, HeadingLevel.HEADING_3, HeadingLevel.HEADING_4][l - 1] }),
           alignment: a.textAlign ? ALIGN[a.textAlign] : undefined,
-          ...pfmt(a),
+          ...pfmt(a, {}, (cst ? resolvePara(S, a.pstyle) : S.text[('h' + l) as 'h1']).font),
           children: a.id ? [new Bookmark({ id: bm(a.id), children: kids })] : kids
         }))
       } else if (n.type === 'bulletList' || n.type === 'orderedList') {
@@ -251,8 +263,15 @@ export async function buildDOCX(doc: CADocument, layout: Layout | null, opts: { 
 
   const table = async (n: any, ctx: any) => {
     const rows = n.content || []
+    const a0 = n.attrs || {}
     const cols = Math.max(1, ...rows.map((r: any) => (r.content || []).reduce((a: number, c: any) => a + (c.attrs?.colspan || 1), 0)))
-    const border = { style: BorderStyle.SINGLE, size: 4, color: hex(S.grid) }
+    const grid = a0.grid as string | null
+    const border = grid === 'none' ? { style: BorderStyle.NONE, size: 0, color: 'auto' } : { style: BorderStyle.SINGLE, size: 4, color: hex(grid || S.grid) }
+    const pad: number[] | null = Array.isArray(a0.pad) && a0.pad.length === 4 ? a0.pad : null
+    const margins = pad ? { top: tw(pad[0]), right: tw(pad[1]), bottom: tw(pad[2]), left: tw(pad[3]) } : { top: 100, bottom: 100, left: 140, right: 140 }
+    // Column widths from the first row, when every column has one.
+    const widths: number[] = []
+    for (const c of rows[0]?.content || []) for (let k = 0; k < (c.attrs?.colspan || 1); k++) widths.push(c.attrs?.colwidth?.[k] || 0)
     const trs: TableRow[] = []
     for (const r of rows) {
       const head = (r.content || []).every((c: any) => c.type === 'tableHeader')
@@ -266,16 +285,17 @@ export async function buildDOCX(doc: CADocument, layout: Layout | null, opts: { 
           rowSpan: c.attrs?.rowspan > 1 ? c.attrs.rowspan : undefined,
           shading: bg ? { type: ShadingType.CLEAR, fill: hex(bg), color: 'auto' } : undefined,
           verticalAlign: VerticalAlignTable.TOP,
-          margins: { top: 100, bottom: 100, left: 140, right: 140 }
+          margins
         }))
       }
       trs.push(new TableRow({ children: cells, tableHeader: head || undefined, cantSplit: true }))
     }
-    const totalTw = tw(pageDims(s, ctx.land)[0] - s.margin.left - s.margin.right)
+    const fixed = widths.length === cols && widths.every(w => w > 0)
+    const totalTw = fixed ? widths.reduce((x, w) => x + tw(w), 0) : tw(pageDims(s, ctx.land)[0] - s.margin.left - s.margin.right)
     return new Table({
       rows: trs,
       width: { size: totalTw, type: WidthType.DXA },
-      columnWidths: Array(cols).fill(Math.floor(totalTw / cols)),
+      columnWidths: fixed ? widths.map(w => tw(w)) : Array(cols).fill(Math.floor(totalTw / cols)),
       layout: TableLayoutType.FIXED,
       borders: { top: border, bottom: border, left: border, right: border, insideHorizontal: border, insideVertical: border }
     })
@@ -393,7 +413,8 @@ export async function buildDOCX(doc: CADocument, layout: Layout | null, opts: { 
     fonts = []
     for (const name of usedFonts) {
       const f = FONTS.find(x => x.name === name)
-      if (!f) continue
+      // Word has its own Calibri, Arial and the rest: embedding the look-alikes under those names would replace them.
+      if (!f || f.word) continue
       const key = fontKey(name)
       try {
         const [r, b, it, bi] = await Promise.all([fontBytes(fontFile(key, 400, false)), fontBytes(fontFile(key, 700, false)), fontBytes(fontFile(key, 400, true)), fontBytes(fontFile(key, 700, true))])

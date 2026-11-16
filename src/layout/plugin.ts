@@ -2,7 +2,7 @@ import { Plugin, PluginKey } from '@tiptap/pm/state'
 import { Decoration, DecorationSet } from '@tiptap/pm/view'
 import type { Node as PMNode } from '@tiptap/pm/model'
 import { defaultSettings, type PageSettings } from '../model/types'
-import { alpha, roman, esc } from '../util'
+import { alpha, roman, esc, fmtNum } from '../util'
 
 export type Spacer = { kind: 'w' | 'i' | 'row'; pos: number; h: number }
 export type Brk = { index: number; h: number }
@@ -96,7 +96,8 @@ function build(doc: PMNode, spacers: Spacer[], info: LayoutInfo, targets: Map<st
   const tocs: { pos: number; node: PMNode }[] = []
   const headings: { id: string; text: string; num: string; level: number }[] = []
 
-  const walk = (node: PMNode, start: number, depth: number) => {
+  // Numbers of the enclosing list items, outermost first, for patterns such as "%1.%2." (imported from Word).
+  const walk = (node: PMNode, start: number, depth: number, outer: { n: number; fmt: any }[] = []) => {
     node.forEach((c, off) => {
       const pos = start + off
       const ty = c.type.name
@@ -107,12 +108,18 @@ function build(doc: PMNode, spacers: Spacer[], info: LayoutInfo, targets: Map<st
           i++
           const lp = pos + 1 + lo
           const first = li.firstChild
+          const me = { n: i, fmt: ordered ? c.attrs.fmt || (['decimal', 'lower-alpha', 'lower-roman'] as const)[depth % 3] : 'decimal' }
           if (first && first.isTextblock) {
             const lv = depth % 3
-            const mk = ordered ? (lv === 0 ? i + '.' : lv === 1 ? alpha(i) + '.' : roman(i) + '.') : BULLETS[lv]
+            let mk: string
+            if (!ordered) mk = c.attrs.char || BULLETS[lv]
+            else if (c.attrs.pat) {
+              const all = [...outer, me]
+              mk = String(c.attrs.pat).replace(/%(\d)/g, (_: string, k: string) => { const e = all[+k - 1]; return e ? fmtNum(e.n, e.fmt) : '' })
+            } else mk = c.attrs.fmt ? fmtNum(i, c.attrs.fmt) + '.' : (lv === 0 ? i + '.' : lv === 1 ? alpha(i) + '.' : roman(i) + '.')
             d.push(widget(lp + 2, 'ca-mk' + (ordered ? ' o' : ''), mk, `mk:${mk}:${depth}`, -1, true))
           }
-          walk(li, lp + 1, depth + 1)
+          walk(li, lp + 1, depth + 1, ordered ? [...outer, me] : outer)
         })
         return
       }
@@ -143,7 +150,7 @@ function build(doc: PMNode, spacers: Spacer[], info: LayoutInfo, targets: Map<st
             d.push(Decoration.node(ip, ip + ic.nodeSize, {}, { xref: xrefText(tg, ic.attrs.show, info.idPage[ic.attrs.target]) }))
           }
         })
-      } else if (!c.isAtom && c.childCount) walk(c, pos + 1, depth)
+      } else if (!c.isAtom && c.childCount) walk(c, pos + 1, depth, outer)
     })
   }
   walk(doc, 0, 0)
