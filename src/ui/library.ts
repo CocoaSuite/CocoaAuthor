@@ -1,3 +1,4 @@
+import { appSettingsDialog } from './appsettings'
 import { store, native, openFile, openFiles, unpackDoc, saveFile, safeName, packDoc } from '../storage/store'
 import { newDoc } from '../model/doc'
 import { addPdf } from '../pdf/source'
@@ -101,6 +102,7 @@ export async function renderLibrary(app: HTMLElement, view: 'recent' | 'all' | '
       { label: 'Import Markdown…', icon: icon('file'), run: importAny }
     ] }]),
     h('span', { class: 'sp' }),
+    native?.setAppIcon ? h('button', { class: 'ic', title: 'Settings', 'aria-label': 'Settings', onclick: appSettingsDialog }, icon('gear')) : '',
     h('button', { onclick: importAny }, icon('upload'), h('span', {}, 'Open or import')),
     h('button', { class: 'pri', onclick: () => createFromTemplate(null) }, icon('plus'), 'New document'))
 

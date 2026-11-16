@@ -4,6 +4,7 @@ const fs = require('fs')
 const fsp = fs.promises
 const os = require('os')
 const { pathToFileURL } = require('url')
+const { setupAppIcon } = require('./appicon.cjs')
 
 protocol.registerSchemesAsPrivileged([{ scheme: 'app', privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true, stream: true } }])
 
@@ -13,6 +14,11 @@ const safe = id => { if (!/^[\w-]{1,64}$/.test(String(id))) throw new Error('Inv
 const docDir = id => path.join(LIB(), safe(id))
 
 let win = null
+const appIcon = setupAppIcon({
+  name: 'CocoaAuthor', appId: 'com.cocoasuite.cocoaauthor',
+  // The installer's file classes (package.json fileAssociations) and their icons
+  fileTypes: { 'CocoaAuthor Document': 'cocoaauthor', 'CocoaAuthor.pdf': 'pdf' }
+})
 const pendingFiles = []
 const launchFiles = []
 
@@ -82,7 +88,7 @@ function openPdfWindow(t) {
     width: 1360, height: 920, minWidth: 640, minHeight: 420,
     title: d.name + ' — CocoaAuthor',
     backgroundColor: '#121212',
-    icon: path.join(__dirname, '..', 'build', 'icon.png'),
+    icon: appIcon.windowIcon(),
     autoHideMenuBar: process.platform !== 'darwin',
     webPreferences: { preload: path.join(__dirname, 'preload.cjs'), contextIsolation: true, sandbox: true, spellcheck: true }
   })
@@ -125,7 +131,7 @@ function createWindow() {
     width: 1440, height: 920, minWidth: 760, minHeight: 520,
     title: 'CocoaAuthor',
     backgroundColor: '#121212',
-    icon: path.join(__dirname, '..', 'build', 'icon.png'),
+    icon: appIcon.windowIcon(),
     autoHideMenuBar: process.platform !== 'darwin',
     webPreferences: { preload: path.join(__dirname, 'preload.cjs'), contextIsolation: true, sandbox: true, spellcheck: true }
   })

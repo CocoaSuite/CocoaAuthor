@@ -75,14 +75,16 @@
         "name": "CocoaAuthor Document",
         "description": "CocoaAuthor document",
         "mimeType": "application/x-cocoaauthor",
-        "role": "Editor"
+        "role": "Editor",
+        "icon": "fileicons/cocoaauthor"
       },
       {
         "ext": "pdf",
-        "name": "PDF Document",
+        "name": "CocoaAuthor.pdf",
         "description": "PDF document",
         "mimeType": "application/pdf",
-        "role": "Viewer"
+        "role": "Viewer",
+        "icon": "fileicons/pdf"
       }
     ],
     "mac": {
