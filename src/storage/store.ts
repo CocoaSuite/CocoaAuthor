@@ -26,6 +26,8 @@ export interface Native {
   saveFile(name: string, data: ArrayBuffer, filters: { name: string; extensions: string[] }[]): Promise<string | null>
   onOpenFile(cb: (f: { name: string; data: ArrayBuffer; files?: Record<string, ArrayBuffer> }) => void): void
   setTitle(t: string): void
+  viewPdf?(name: string, data: ArrayBuffer): Promise<void>
+  viewPdfPath?(file: string): Promise<void>
 }
 
 export const native: Native | undefined = (window as any).cocoaNative
@@ -182,6 +184,7 @@ export async function saveFile(name: string, data: Uint8Array | Blob, ext: strin
 export async function openFile(exts: string[]): Promise<{ name: string; data: Uint8Array; files?: Map<string, Uint8Array> } | null> {
   if (native) {
     const r = await native.openFile([{ name: 'Documents', extensions: exts.map(e => e.replace('.', '')) }])
+    if (r && (r as any).viewed) return null
     return r ? { name: r.name, data: new Uint8Array(r.data), files: nativeFiles(r.files) } : null
   }
   return new Promise(res => {

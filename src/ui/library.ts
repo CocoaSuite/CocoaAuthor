@@ -17,7 +17,16 @@ export async function createFromTemplate(t: Template | null) {
   go('/doc/' + d.meta.id)
 }
 
-export const OPEN_EXTS = ['.cocoaauthor', '.docx', '.md', '.markdown', '.zip']
+export const OPEN_EXTS = ['.cocoaauthor', '.docx', '.md', '.markdown', '.zip', '.pdf']
+
+/** PDFs are viewed, not imported: in their own window on desktop, in a new tab on the web. */
+export async function viewPdf(name: string, data: Uint8Array) {
+  const buf = data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength) as ArrayBuffer
+  if (native?.viewPdf) return native.viewPdf(name, buf)
+  const url = URL.createObjectURL(new Blob([buf], { type: 'application/pdf' }))
+  if (!window.open(url, '_blank')) toast('Allow pop-ups to view PDFs.', 5000)
+  setTimeout(() => URL.revokeObjectURL(url), 60000)
+}
 
 export async function importAny() {
   if (native) {
@@ -29,10 +38,17 @@ export async function importAny() {
   if (fs.length) await importPicked(fs)
 }
 
+export async function openPdfFile() {
+  const f = await openFile(['.pdf'])
+  if (f) await viewPdf(f.name, f.data)
+}
+
 /** Several files picked or dropped together: the document plus, for Markdown, the images it uses. */
 export async function importPicked(fs: { name: string; data: Uint8Array }[]) {
+  const pdfs = fs.filter(f => /\.pdf$/i.test(f.name))
+  for (const p of pdfs) await viewPdf(p.name, p.data)
   const main = fs.find(f => /\.(cocoaauthor|docx|md|markdown|zip)$/i.test(f.name))
-  if (!main) { toast('Choose a .cocoaauthor, .docx, Markdown or .zip file.'); return }
+  if (!main) { if (!pdfs.length) toast('Choose a PDF, .cocoaauthor, .docx, Markdown or .zip file.'); return }
   const files = new Map<string, Uint8Array>()
   for (const f of fs) if (f !== main) files.set(f.name, f.data)
   await importData(main.name, main.data, files)
@@ -40,6 +56,7 @@ export async function importPicked(fs: { name: string; data: Uint8Array }[]) {
 
 export async function importData(name: string, data: Uint8Array, files?: Map<string, Uint8Array>) {
   try {
+    if (/\.pdf$/i.test(name)) { await viewPdf(name, data); return }
     if (/\.(md|markdown|zip)$/i.test(name)) {
       toast('Importing Markdown…', 8000)
       const { importMarkdownBundle } = await import('../import/markdown')
@@ -80,6 +97,7 @@ export async function renderLibrary(app: HTMLElement, view: 'recent' | 'all' | '
       { label: 'New from template…', icon: icon('template'), run: () => go('/templates') },
       'sep',
       { label: 'Open CocoaAuthor file…', icon: icon('file'), run: importAny },
+      { label: 'Open PDF…', icon: icon('file'), run: openPdfFile },
       { label: 'Import Word document…', icon: icon('word'), run: importAny },
       { label: 'Import Markdown…', icon: icon('file'), run: importAny }
     ] }]),

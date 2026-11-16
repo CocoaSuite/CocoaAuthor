@@ -31,7 +31,7 @@ let overlay: HTMLElement | null = null
 window.addEventListener('dragenter', e => {
   if (!e.dataTransfer?.types.includes('Files') || route().name === 'doc') return
   dragN++
-  if (!overlay) { overlay = h('div', { class: 'drop' }, 'Drop a .cocoaauthor, Word or Markdown file to open it'); document.body.append(overlay) }
+  if (!overlay) { overlay = h('div', { class: 'drop' }, 'Drop a PDF, .cocoaauthor, Word or Markdown file to open it'); document.body.append(overlay) }
 })
 window.addEventListener('dragleave', () => { if (--dragN <= 0) { dragN = 0; overlay?.remove(); overlay = null } })
 window.addEventListener('dragover', e => { if (e.dataTransfer?.types.includes('Files')) e.preventDefault() })
@@ -39,7 +39,7 @@ window.addEventListener('drop', async e => {
   dragN = 0; overlay?.remove(); overlay = null
   if (route().name === 'doc') return
   const all = Array.from(e.dataTransfer?.files || [])
-  if (!all.some(x => /\.(cocoaauthor|docx|md|markdown|zip)$/i.test(x.name))) return
+  if (!all.some(x => /\.(cocoaauthor|docx|md|markdown|zip|pdf)$/i.test(x.name))) return
   e.preventDefault()
   importPicked(await Promise.all(all.map(async f => ({ name: f.name, data: new Uint8Array(await f.arrayBuffer()) }))))
 })

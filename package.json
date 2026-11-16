@@ -1,6 +1,6 @@
 {
   "name": "cocoaauthor",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Document authoring and publishing for the Cocoa suite.",
   "main": "electron/main.cjs",
   "scripts": {
@@ -75,6 +75,13 @@
         "description": "CocoaAuthor document",
         "mimeType": "application/x-cocoaauthor",
         "role": "Editor"
+      },
+      {
+        "ext": "pdf",
+        "name": "PDF Document",
+        "description": "PDF document",
+        "mimeType": "application/pdf",
+        "role": "Viewer"
       }
     ],
     "mac": {
