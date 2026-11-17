@@ -19,7 +19,9 @@ export async function importDocx(data: Uint8Array, fileName: string): Promise<CA
     return doc
   } catch (e) {
     console.warn('Word import: falling back to the basic reader', e)
-    return importDocxBasic(data, fileName)
+    const d = await importDocxBasic(data, fileName)
+    ;(d as any)._basic = true
+    return d
   }
 }
 

@@ -404,7 +404,7 @@ export function renderPages(root: HTMLElement, L: Layout, s: PageSettings, meta:
         return `<div class="ca-fnb" id="fn-${id}"><a class="ca-fnn" href="#fnr-${id}">${esc(t?.num || '')}</a><span>${esc(t?.text || '')}</span></div>`
       }).join('') + `</div>`
     }
-    if (mode === 'edit' && p.secStart && p.sec > 0) inner += `<div class="ca-seclbl" style="top:${-p.m.top + 10}px;left:${-p.m.left + 12}px">Section ${p.sec + 1}${p.landscape ? ' · Landscape' : ''}</div>`
+    if (mode === 'edit' && p.secStart && p.sec > 0) inner += `<div class="ca-seclbl" style="top:${-p.m.top + 10}px;left:${-p.m.left + 12}px">Section ${p.sec + 1}${p.landscape ? ', landscape' : ''}</div>`
     o += `<div class="ca-frame" data-page="${p.i}" style="top:${p.top}px;left:${p.left}px;width:${p.w}px;height:${p.h}px;border-width:${p.m.top}px ${p.m.right}px ${p.m.bottom}px ${p.m.left}px;--gap:${L.gap / 2 + 1}px">${inner}</div>`
   }
   under.innerHTML = u

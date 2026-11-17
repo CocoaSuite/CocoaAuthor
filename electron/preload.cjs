@@ -5,6 +5,7 @@ contextBridge.exposeInMainWorld('cocoaNative', {
   listDocs: () => ipcRenderer.invoke('listDocs'),
   loadDoc: id => ipcRenderer.invoke('loadDoc', id),
   saveDoc: (id, json, summary) => ipcRenderer.invoke('saveDoc', id, json, summary),
+  saveDocSync: (id, json, summary) => ipcRenderer.sendSync('saveDocSync', id, json, summary),
   deleteDoc: id => ipcRenderer.invoke('deleteDoc', id),
   putAsset: (id, aid, data) => ipcRenderer.invoke('putAsset', id, aid, data),
   getAsset: (id, aid) => ipcRenderer.invoke('getAsset', id, aid),

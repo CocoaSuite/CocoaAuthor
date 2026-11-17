@@ -68,7 +68,7 @@ export async function importData(name: string, data: Uint8Array, files?: Map<str
       toast('Importing Word document…', 8000)
       const { importDocx } = await import('../import/docx')
       const d = await importDocx(data, name)
-      toast('Imported ' + d.meta.title)
+      toast((d as any)._basic ? `Imported ${d.meta.title}. Some of its layout could not be read, so it was brought in as plain text, headings, lists and tables.` : 'Imported ' + d.meta.title, (d as any)._basic ? 7000 : 2400)
       go('/doc/' + d.meta.id)
     } else {
       const d = await unpackDoc(data)
@@ -139,7 +139,8 @@ export async function renderLibrary(app: HTMLElement, view: 'recent' | 'all' | '
       for (const t of TEMPLATES.filter((_, i) => i % 5 === 0)) tc.append(tplCard(t))
       main.append(tc)
     }
-    if (!q) setTimeout(() => search.focus({ preventScroll: true }), 0)
+    // Not on touch screens: focusing the field there brings up the on-screen keyboard.
+    if (!q && !matchMedia('(pointer:coarse)').matches) setTimeout(() => search.focus({ preventScroll: true }), 0)
   }
 
   const drawCards = (el: HTMLElement) => {
@@ -163,9 +164,9 @@ export async function renderLibrary(app: HTMLElement, view: 'recent' | 'all' | '
     thumbForDoc(d.id, th)
     const c = h('div', { class: 'card', role: 'button', tabindex: '0', onclick: () => go('/doc/' + d.id), oncontextmenu: (e: MouseEvent) => { e.preventDefault(); menu(d, e.clientX, e.clientY) } },
       th,
-      h('div', { class: 'meta' }, h('span', { class: 't', title: d.title }, d.title), h('span', { class: 's' }, h('span', { class: 'chip ' + d.status }, d.status === 'review' ? 'In review' : d.status), relTime(d.modified), '·', `${d.words.toLocaleString()} words`)),
+      h('div', { class: 'meta' }, h('span', { class: 't', title: d.title }, d.title), h('span', { class: 's' }, h('span', { class: 'chip ' + d.status }, d.status === 'review' ? 'In review' : d.status), `${relTime(d.modified)}, ${d.words.toLocaleString()} ${d.words === 1 ? 'word' : 'words'}`)),
       more)
-    c.addEventListener('keydown', e => { if (e.key === 'Enter') go('/doc/' + d.id) })
+    c.addEventListener('keydown', e => { if (e.target === c && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); go('/doc/' + d.id) } })
     return c
   }
 

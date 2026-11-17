@@ -182,11 +182,34 @@ export function renameHeading(ed: Editor, pos: number, text: string) {
   ed.view.dispatch(tr)
 }
 
+/** Photos are kept at up to this many pixels on the long side: sharp in print at full page width, a fraction of the size of a phone camera original. */
+const MAX_SIDE = 3000
+
+/** Scale a large JPEG or PNG down to MAX_SIDE. Anything else (GIF, SVG, small images) is kept as it is. */
+async function shrink(blob: Blob, bmp: ImageBitmap): Promise<Blob | null> {
+  const long = Math.max(bmp.width, bmp.height)
+  if (long <= MAX_SIDE || blob.size < 1.5e6 || !/^image\/(jpeg|png)$/.test(blob.type)) return null
+  const k = MAX_SIDE / long
+  const c = document.createElement('canvas')
+  c.width = Math.round(bmp.width * k); c.height = Math.round(bmp.height * k)
+  const g = c.getContext('2d')
+  if (!g) return null
+  g.imageSmoothingQuality = 'high'
+  g.drawImage(bmp, 0, 0, c.width, c.height)
+  const type = blob.type
+  const out = await new Promise<Blob | null>(r => c.toBlob(r, type, 0.9))
+  return out && out.size < blob.size ? out : null
+}
+
 export async function addImageAsset(doc: CADocument, blob: Blob, name: string): Promise<{ id: string; w: number; h: number }> {
   let w = 800, h = 600
   try {
     const bmp = await createImageBitmap(blob)
     w = bmp.width; h = bmp.height
+    try {
+      const small = await shrink(blob, bmp)
+      if (small) { blob = small; const k = MAX_SIDE / Math.max(w, h); w = Math.round(w * k); h = Math.round(h * k) }
+    } catch {}
     bmp.close()
   } catch {
     if (blob.type === 'image/svg+xml') {

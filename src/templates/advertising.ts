@@ -32,7 +32,7 @@ export const advertising = [
   {
     id: 'ad-brief', category: 'Advertising', name: 'Creative Brief',
     description: 'A sharp, single-page brief for creative teams.',
-    spec: `? Creative brief · [Brand] · [Date]
+    spec: `? Creative brief – [Brand] – [Date]
 # Why are we advertising?
 ? The business problem in one or two sentences.
 # Who are we talking to?

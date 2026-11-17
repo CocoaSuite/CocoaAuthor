@@ -1,5 +1,22 @@
 import type { NumberFormat } from './model/types'
 
+/** Apple keyboards: Mac (desktop or browser), iPad and iPhone. Shortcut labels use ⌘ there. */
+export const isMac = (() => {
+  try {
+    const n = (window as any).cocoaNative
+    if (n) return n.platform === 'darwin'
+    return /Mac|iPhone|iPad|iPod/.test(navigator.platform || navigator.userAgent)
+  } catch { return false }
+})()
+/** The shortcut modifier as shown in labels: "⌘" or "Ctrl+". */
+export const MOD = isMac ? '⌘' : 'Ctrl+'
+
+/** Links the app will open: web, mail and phone addresses, and links inside the document. Never script or data URLs. */
+export const safeHref = (href: string) => {
+  const v = String(href ?? '').replace(/[\s\u0000-\u001f]/g, '')
+  return /^(https?:|mailto:|tel:|#)/i.test(v) || !/^[a-z][a-z0-9+.-]*:/i.test(v)
+}
+
 export const uid = (p = '') => p + Math.random().toString(36).slice(2, 8) + Date.now().toString(36).slice(-3)
 
 /** Shortcut letter for a key event. Falls back to the physical key when the layout is not Latin (Ctrl+F on a Russian layout reports 'а'). */

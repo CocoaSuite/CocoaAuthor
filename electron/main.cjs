@@ -22,12 +22,17 @@ const appIcon = setupAppIcon({
 const pendingFiles = []
 const launchFiles = []
 
-async function writeAtomic(file, data) {
+let tmpN = 0
+const tmpOf = file => file + '.' + process.pid + '.' + (++tmpN) + '.tmp'
+async function writeAtomic(file, data, stillWanted = () => true) {
   await fsp.mkdir(path.dirname(file), { recursive: true })
-  const tmp = file + '.' + process.pid + '.tmp'
+  const tmp = tmpOf(file)
   await fsp.writeFile(tmp, data)
+  if (!stillWanted()) { await fsp.rm(tmp, { force: true }); return }
   await fsp.rename(tmp, file)
 }
+// Last synchronous save per document: an older asynchronous save that finishes later must not overwrite it.
+const syncSaved = new Map()
 
 const ab = b => b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength)
 const IMG_EXT = /\.(png|jpe?g|gif|webp|svg|bmp|avif)$/i
@@ -170,7 +175,7 @@ else {
       let p = decodeURIComponent(u.pathname)
       if (p === '/' || !p) p = '/index.html'
       const file = path.normalize(path.join(DIST, p))
-      if (!file.startsWith(DIST)) return new Response('Not found', { status: 404 })
+      if (file !== DIST && !file.startsWith(DIST + path.sep)) return new Response('Not found', { status: 404 })
       return net.fetch(pathToFileURL(file).toString())
     })
     if (process.platform === 'darwin') {
@@ -197,8 +202,24 @@ ipcMain.handle('loadDoc', async (_e, id) => {
   try { return await fsp.readFile(path.join(docDir(id), 'document.json'), 'utf8') } catch { return null }
 })
 ipcMain.handle('saveDoc', async (_e, id, json, summary) => {
-  await writeAtomic(path.join(docDir(id), 'document.json'), json)
-  await writeAtomic(path.join(docDir(id), 'summary.json'), summary)
+  const t0 = Date.now()
+  const wanted = () => !(syncSaved.get(id) >= t0)
+  await writeAtomic(path.join(docDir(id), 'document.json'), json, wanted)
+  await writeAtomic(path.join(docDir(id), 'summary.json'), summary, wanted)
+})
+// Used while a window closes: the renderer waits for the write, so the last edits are on disk before it goes.
+ipcMain.on('saveDocSync', (e, id, json, summary) => {
+  try {
+    const dir = docDir(id)
+    fs.mkdirSync(dir, { recursive: true })
+    for (const [f, data] of [['document.json', json], ['summary.json', summary]]) {
+      const file = path.join(dir, f), tmp = tmpOf(file)
+      fs.writeFileSync(tmp, data)
+      fs.renameSync(tmp, file)
+    }
+    syncSaved.set(String(id), Date.now())
+    e.returnValue = true
+  } catch { e.returnValue = false }
 })
 ipcMain.handle('deleteDoc', async (_e, id) => { await fsp.rm(docDir(id), { recursive: true, force: true }) })
 ipcMain.handle('putAsset', async (_e, id, aid, data) => { await writeAtomic(path.join(docDir(id), 'assets', safe(aid)), Buffer.from(data)) })

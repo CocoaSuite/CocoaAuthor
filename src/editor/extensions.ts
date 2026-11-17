@@ -17,6 +17,11 @@ import { layoutPlugin, getSettings } from '../layout/plugin'
 import { chartURL, type ChartData } from './chart'
 import { frameRatio, placeImage } from './imagegeom'
 
+const jsonAttr = (v: string | null): Record<string, any> | null => {
+  if (!v) return null
+  try { const o = JSON.parse(v); return o && typeof o === 'object' && !Array.isArray(o) ? o : null } catch { return null }
+}
+
 const idAttr = {
   default: null,
   keepOnSplit: false,
@@ -94,7 +99,7 @@ export const Img = Node.create({
   draggable: true,
   addAttributes() {
     return {
-      src: { default: '' },
+      src: { default: '', parseHTML: (el: HTMLElement) => { const d = el.getAttribute('data-src'); return d && d.startsWith('asset:') ? d : el.getAttribute('src') } },
       w: { default: 800 },
       h: { default: 600 },
       width: { default: 100 },
@@ -112,10 +117,18 @@ export const Img = Node.create({
     tag: 'img[src]',
     getAttrs: el => {
       const i = el as HTMLImageElement
-      return { src: i.getAttribute('src'), alt: i.alt || '', w: i.naturalWidth || +(i.getAttribute('width') || 800), h: i.naturalHeight || +(i.getAttribute('height') || 600) }
+      // Copied from CocoaAuthor: every setting travels in data-ca, and the stored image in data-src (src is only a temporary blob link).
+      const saved = jsonAttr(i.getAttribute('data-ca'))
+      if (saved && typeof saved.src === 'string') return saved
+      const ds = i.getAttribute('data-src')
+      const src = ds && ds.startsWith('asset:') ? ds : i.getAttribute('src')
+      return { src, alt: i.alt || '', w: i.naturalWidth || +(i.getAttribute('width') || 800), h: i.naturalHeight || +(i.getAttribute('height') || 600) }
     }
   }],
-  renderHTML: ({ HTMLAttributes: a }) => ['img', { src: a.src.startsWith('asset:') ? assets.url(a.src.slice(6)) : a.src, alt: a.alt, 'data-src': a.src }],
+  renderHTML: ({ node }) => {
+    const a = node.attrs
+    return ['img', { src: a.src.startsWith('asset:') ? assets.url(a.src.slice(6)) : a.src, alt: a.alt, 'data-src': a.src, 'data-ca': JSON.stringify(a) }]
+  },
   addNodeView() {
     return ({ node: n0, getPos, editor }) => {
       let node = n0
@@ -197,8 +210,8 @@ export const Chart = Node.create({
       labels: j('labels', []), series: j('series', [])
     }
   },
-  parseHTML: () => [{ tag: 'figure.ca-chart' }],
-  renderHTML: ({ node }) => ['figure', { class: 'ca-chart', 'data-labels': JSON.stringify(node.attrs.labels), 'data-series': JSON.stringify(node.attrs.series), 'data-kind': node.attrs.kind }, ['img', { src: chartURL(node.attrs as ChartData), alt: node.attrs.title || 'Chart' }]],
+  parseHTML: () => [{ tag: 'figure.ca-chart', priority: 60, getAttrs: el => jsonAttr((el as HTMLElement).getAttribute('data-ca')) || {} }],
+  renderHTML: ({ node }) => ['figure', { class: 'ca-chart', 'data-labels': JSON.stringify(node.attrs.labels), 'data-series': JSON.stringify(node.attrs.series), 'data-kind': node.attrs.kind, 'data-ca': JSON.stringify(node.attrs) }, ['img', { src: chartURL(node.attrs as ChartData), alt: node.attrs.title || 'Chart' }]],
   addNodeView() {
     return ({ node }) => {
       const dom = document.createElement('figure')
@@ -390,18 +403,31 @@ export const Ids = Extension.create({
   addProseMirrorPlugins() {
     return [new Plugin({
       key: new PluginKey('caIds'),
-      appendTransaction(trs, _o, state) {
+      appendTransaction(trs, old, state) {
         if (!trs.some(t => t.docChanged)) return null
+        const needs = (n: any) => ID_TYPES.has(n.type.name) || (n.type.name === 'paragraph' && n.attrs.kind === 'caption')
+        // Where each existing id ends up, so a pasted copy never takes the id (and the links) of the original.
+        const owner = new Map<string, number>()
+        old.doc.descendants((n, pos) => {
+          if (!needs(n) || !n.attrs.id) return
+          let p = pos
+          for (const t of trs) { const r = t.mapping.mapResult(p, 1); if (r.deleted) return; p = r.pos }
+          owner.set(n.attrs.id, p)
+        })
+        const count = new Map<string, number>()
+        state.doc.descendants(n => { if (needs(n) && n.attrs.id) count.set(n.attrs.id, (count.get(n.attrs.id) || 0) + 1) })
         const seen = new Set<string>()
         let tr: any = null
         state.doc.descendants((n, pos) => {
-          const need = ID_TYPES.has(n.type.name) || (n.type.name === 'paragraph' && n.attrs.kind === 'caption')
+          const need = needs(n)
           if (!need) {
             if (n.type.name === 'paragraph' && n.attrs.id) { tr = tr || state.tr; tr.setNodeAttribute(pos, 'id', null) }
             return
           }
           const id = n.attrs.id
-          if (!id || seen.has(id)) {
+          // A duplicated id stays with the node that had it before; the others get new ones.
+          const dupLoser = id && (count.get(id) || 0) > 1 && owner.has(id) && owner.get(id) !== pos && state.doc.nodeAt(owner.get(id)!)?.attrs?.id === id
+          if (!id || seen.has(id) || dupLoser) {
             const nid = uid(n.type.name[0])
             tr = tr || state.tr
             tr.setNodeAttribute(pos, 'id', nid)
