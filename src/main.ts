@@ -30,6 +30,12 @@ show()
 installTouch()
 busy.then(() => maybeOnboard())
 
+// Desktop (Windows/Linux): the window controls sit in the right end of the top bar, as in CocoaShot.
+if (native && native.platform !== 'darwin') {
+  document.documentElement.classList.add('wco')
+  native.onFullScreen?.(on => document.documentElement.classList.toggle('fs', on))
+}
+
 native?.onOpenFile(f => importData(f.name, new Uint8Array(f.data), nativeFiles(f.files)))
 
 let dragN = 0
