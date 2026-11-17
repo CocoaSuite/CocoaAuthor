@@ -26,6 +26,7 @@ export interface Native {
   saveFile(name: string, data: ArrayBuffer, filters: { name: string; extensions: string[] }[]): Promise<string | null>
   onOpenFile(cb: (f: { name: string; data: ArrayBuffer; files?: Record<string, ArrayBuffer> }) => void): void
   setTitle(t: string): void
+  onFullScreen?(cb: (on: boolean) => void): void
   viewPdf?(name: string, data: ArrayBuffer): Promise<void>
   pdfInfo?(token: string): Promise<{ name: string; data: ArrayBuffer; path: string | null } | null>
   savePdf?(token: string, data: ArrayBuffer, as: boolean): Promise<string | null>

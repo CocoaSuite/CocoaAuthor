@@ -73,6 +73,15 @@ const external = url => { if (/^(https?|mailto|tel):/i.test(url)) shell.openExte
 const pdfDocs = new Map()
 const token = () => 'p' + Math.random().toString(36).slice(2, 10) + Date.now().toString(36)
 
+// Window controls live in the app's own top bar (same as CocoaShot): the native title bar is hidden
+// and Windows/Linux draw minimise/maximise/close as an overlay on the right of #top.
+const windowChrome = () => process.platform === 'darwin' ? {} : { titleBarStyle: 'hidden', titleBarOverlay: { color: '#1a1a1a', symbolColor: '#ececec', height: 41 } }
+function watchFullScreen(w) {
+  const fs = v => () => { if (!w.isDestroyed()) w.webContents.send('fullscreen', v) }
+  w.on('enter-full-screen', fs(true))
+  w.on('leave-full-screen', fs(false))
+}
+
 function guardWindow(w) {
   w.webContents.setWindowOpenHandler(({ url }) => { external(url); return { action: 'deny' } })
   w.webContents.on('will-navigate', (e, url) => { if (!url.startsWith('app://')) { e.preventDefault(); external(url) } })
@@ -90,8 +99,10 @@ function openPdfWindow(t) {
     backgroundColor: '#121212',
     icon: appIcon.windowIcon(),
     autoHideMenuBar: process.platform !== 'darwin',
+    ...windowChrome(),
     webPreferences: { preload: path.join(__dirname, 'preload.cjs'), contextIsolation: true, sandbox: true, spellcheck: true }
   })
+  watchFullScreen(w)
   guardWindow(w)
   w.webContents.on('before-input-event', (e, i) => {
     if (i.type !== 'keyDown') return
@@ -133,8 +144,10 @@ function createWindow() {
     backgroundColor: '#121212',
     icon: appIcon.windowIcon(),
     autoHideMenuBar: process.platform !== 'darwin',
+    ...windowChrome(),
     webPreferences: { preload: path.join(__dirname, 'preload.cjs'), contextIsolation: true, sandbox: true, spellcheck: true }
   })
+  watchFullScreen(win)
   guardWindow(win)
   win.webContents.on('did-finish-load', () => { while (pendingFiles.length) win.webContents.send('open-file', pendingFiles.shift()) })
   win.loadURL('app://cocoaauthor/index.html')
