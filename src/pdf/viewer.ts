@@ -1,12 +1,12 @@
 import * as pdfjs from 'pdfjs-dist'
 import workerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
 import type { PDFDocumentProxy, PDFPageProxy, PageViewport, RenderTask } from 'pdfjs-dist'
-import { h, relTime, clamp, uid, esc, keyOf } from '../util'
+import { h, relTime, clamp, uid, esc, keyOf, MOD, isMac } from '../util'
 import { icon } from '../ui/icons'
 import { menuBar, toast, confirmBox, promptBox } from '../ui/dialogs'
 import { native, saveFile, openFile } from '../storage/store'
 import { go } from '../router'
-import { getPdf, addPdf } from './source'
+import { getPdf, addPdf, forgetPdf } from './source'
 import { extract, build, bounds, translate, norm, TYPE_LABEL, type Annot, type Extracted } from './annots'
 import type { WS } from '../ui/workspace'
 
@@ -87,7 +87,7 @@ export async function openPdfViewer(app: HTMLElement, token: string): Promise<WS
   const nameEl = h('b', { class: 'pv-name', title: src.path || name }, name)
   const pageIn = h('input', { type: 'text', class: 'pv-pagein', value: '1', 'aria-label': 'Page' }) as HTMLInputElement
   const zoomEl = h('span', { title: 'Zoom' }, '100%')
-  const saveBtn = h('button', { class: 'pri', onclick: () => save(false), title: 'Save (Ctrl+S)' }, icon('save'), 'Save')
+  const saveBtn = h('button', { class: 'pri', onclick: () => save(false), title: `Save (${MOD}S)` }, icon('save'), 'Save')
   const top = h('div', { id: 'top' },
     h('button', { class: 'brand', title: 'CocoaAuthor library', onclick: async () => { if (await leaveOk()) go('/') } }, h('img', { src: 'logo.svg', alt: 'CocoaAuthor' })),
     menuBar([
@@ -101,7 +101,7 @@ export async function openPdfViewer(app: HTMLElement, token: string): Promise<WS
         { label: 'Close', icon: icon('x'), run: async () => { if (await leaveOk()) { if (native) window.close(); else go('/') } } }
       ] },
       { label: 'View', items: () => [
-        { label: 'Find…  Ctrl+F', icon: icon('search'), run: () => openFind() },
+        { label: `Find…  ${MOD}F`, icon: icon('search'), run: () => openFind() },
         'sep',
         { label: 'Fit width', icon: icon('alignj'), run: () => setZoom('width') },
         { label: 'Fit page', icon: icon('page'), run: () => setZoom('page') },
@@ -133,14 +133,14 @@ export async function openPdfViewer(app: HTMLElement, token: string): Promise<WS
       h('button', { class: 'ic', title: 'Next page', onclick: () => goPage(cur + 1) }, icon('right'))),
     h('span', { class: 'sep pv-sep' }),
     h('div', { class: 'zoom' },
-      h('button', { class: 'ic', title: 'Zoom out (Ctrl+−)', onclick: () => zoomBy(1 / 1.2) }, icon('zout')),
+      h('button', { class: 'ic', title: `Zoom out (${MOD}−)`, onclick: () => zoomBy(1 / 1.2) }, icon('zout')),
       zoomEl,
-      h('button', { class: 'ic', title: 'Zoom in (Ctrl+=)', onclick: () => zoomBy(1.2) }, icon('zin')),
-      h('button', { class: 'ic pv-fit', title: 'Fit width (Ctrl+0)', onclick: () => setZoom(zoomMode === 'width' ? 'page' : 'width') }, 'Fit'),
+      h('button', { class: 'ic', title: `Zoom in (${MOD}=)`, onclick: () => zoomBy(1.2) }, icon('zin')),
+      h('button', { class: 'ic pv-fit', title: `Fit width (${MOD}0)`, onclick: () => setZoom(zoomMode === 'width' ? 'page' : 'width') }, 'Fit'),
       h('button', { class: 'ic', title: 'Rotate', onclick: () => rotate(90) }, icon('rotate'))),
     h('span', { class: 'sp' }),
-    h('button', { class: 'ic', title: 'Find (Ctrl+F)', onclick: () => openFind() }, icon('search')),
-    h('button', { class: 'ic', title: 'Print (Ctrl+P)', onclick: printPdf }, icon('printer')),
+    h('button', { class: 'ic', title: `Find (${MOD}F)`, onclick: () => openFind() }, icon('search')),
+    h('button', { class: 'ic', title: `Print (${MOD}P)`, onclick: printPdf }, icon('printer')),
     saveBtn
   )
   zoomEl.onclick = () => setZoom(zoomMode === 'width' ? 'page' : 'width')
@@ -152,8 +152,8 @@ export async function openPdfViewer(app: HTMLElement, token: string): Promise<WS
     ...[1, 2, 3, 5, 8].map(w => h('option', { value: String(w), selected: w === penW }, w + ' pt'))) as HTMLSelectElement
   const sizeSel = h('select', { title: 'Text size', onchange: () => { textSize = +sizeSel.value; setPref('textsize', sizeSel.value); applyToSel(a => { if (a.type === 'text') a.size = textSize }) } },
     ...[9, 10, 12, 14, 18, 24, 32].map(s => h('option', { value: String(s), selected: s === textSize }, s + ' pt'))) as HTMLSelectElement
-  const undoBtn = h('button', { class: 'ic', title: 'Undo (Ctrl+Z)', onclick: () => doUndo() }, icon('undo')) as HTMLButtonElement
-  const redoBtn = h('button', { class: 'ic', title: 'Redo (Ctrl+Y)', onclick: () => doRedo() }, icon('redo')) as HTMLButtonElement
+  const undoBtn = h('button', { class: 'ic', title: `Undo (${MOD}Z)`, onclick: () => doUndo() }, icon('undo')) as HTMLButtonElement
+  const redoBtn = h('button', { class: 'ic', title: `Redo (${MOD}${isMac ? '⇧Z' : 'Y'})`, onclick: () => doRedo() }, icon('redo')) as HTMLButtonElement
   const tools = h('div', { id: 'tools' },
     ...TOOLS.flatMap((t, i) => {
       const b = h('button', { class: 'ic', title: `${t.label} (${t.key})`, onclick: () => setTool(t.id) }, icon(t.icon)) as HTMLButtonElement
@@ -1175,10 +1175,10 @@ export async function openPdfViewer(app: HTMLElement, token: string): Promise<WS
           h('span', { class: 'mute' }, 'p. ' + (a.page + 1)),
           h('span', { class: 'sp' }),
           h('button', { class: 'ic', title: 'Delete', onclick: () => del(a.id) }, icon('trash'))),
-        h('div', { class: 'pv-meta mute' }, (a.author || 'Unknown') + ' · ' + relTime(a.date)),
+        h('div', { class: 'pv-meta mute' }, (a.author || 'Unknown') + ', ' + relTime(a.date)),
         a.type === 'text' ? h('div', { class: 'pv-quote' }, a.contents || '(empty)') : ta,
         ...a.replies.map(r => h('div', { class: 'pv-rep' },
-          h('div', { class: 'pv-meta mute' }, (r.author || 'Unknown') + ' · ' + relTime(r.date),
+          h('div', { class: 'pv-meta mute' }, (r.author || 'Unknown') + ', ' + relTime(r.date),
             h('button', { class: 'ic', title: 'Delete reply', onclick: () => mutate(() => { a.replies = a.replies.filter(x => x !== r) }, [a.page]) }, icon('x'))),
           h('div', {}, r.text))),
         (a.contents || a.replies.length) && ex.editable ? reply : null)
@@ -1213,9 +1213,11 @@ export async function openPdfViewer(app: HTMLElement, token: string): Promise<WS
     updStatus()
     toast('Saved ' + name)
   }
+  let leaving = false
   async function leaveOk() {
-    if (!dirty) return true
-    return confirmBox('Leave without saving?', 'Your markup and comments on this PDF have not been saved.', 'Leave', true)
+    if (!dirty || leaving) return true
+    leaving = await confirmBox('Leave without saving?', 'Your markup and comments on this PDF have not been saved.', 'Leave', true)
+    return leaving
   }
   async function openOther() {
     const f = await openFile(['.pdf'])
@@ -1285,7 +1287,7 @@ export async function openPdfViewer(app: HTMLElement, token: string): Promise<WS
   const keyUp = (e: KeyboardEvent) => { if (e.key === ' ') { spaceDown = false; desk.classList.remove('space') } }
   document.addEventListener('keydown', keys)
   document.addEventListener('keyup', keyUp)
-  const beforeUnload = (e: BeforeUnloadEvent) => { if (dirty) { e.preventDefault(); e.returnValue = '' } }
+  const beforeUnload = (e: BeforeUnloadEvent) => { if (dirty && !leaving) { e.preventDefault(); e.returnValue = '' } }
   window.addEventListener('beforeunload', beforeUnload)
 
   // ---------- start ----------
@@ -1298,8 +1300,11 @@ export async function openPdfViewer(app: HTMLElement, token: string): Promise<WS
   desk.focus()
 
   return {
+    // Back button, swipe back or any other route change: ask before unsaved markup is thrown away.
+    canLeave: () => leaveOk(),
     async dispose() {
       disposed = true
+      if (!native) forgetPdf(token)
       io.disconnect(); thumbIO.disconnect(); ro.disconnect()
       for (const pv of pvs) pv.task?.cancel()
       document.removeEventListener('keydown', keys)

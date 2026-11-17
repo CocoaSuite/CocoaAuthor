@@ -1,12 +1,12 @@
 import type { Editor } from '@tiptap/core'
 import { DocView } from '../editor/docview'
 import { assets } from '../editor/registry'
-import { store, native } from '../storage/store'
+import { store, native, saveDocSync } from '../storage/store'
 import { assetIds } from '../model/doc'
 import { FONTS } from '../model/types'
-import { h, debounce, keyOf } from '../util'
+import { h, debounce, keyOf, MOD, isMac, safeHref } from '../util'
 import { icon } from './icons'
-import { menuBar, toast, dropdown, confirmBox } from './dialogs'
+import { menuBar, toast, dropdown, confirmBox, type MenuDef } from './dialogs'
 import { outlinePanel } from './outline'
 import { inspectorPanel } from './inspector'
 import { currentBlockStyle, setBlockStyle, setCharStyle, stylesOf, nudgeSpacing, toggleParaQuotes, insertImage, addImageAsset, insertSectionBreak, settingsOf, setSettings, type BlockStyle } from './commands'
@@ -24,7 +24,7 @@ import { insertFloatingImage, insertTextBox } from './framecmds'
 import { tabletToggle, pinchZoom } from './touch'
 import { runOnboarding } from './onboarding'
 
-export interface WS { dispose(): Promise<void> }
+export interface WS { dispose(): Promise<void>; canLeave?(): Promise<boolean> }
 
 export async function openWorkspace(app: HTMLElement, id: string): Promise<WS | null> {
   const doc = await store.load(id)
@@ -46,18 +46,21 @@ export async function openWorkspace(app: HTMLElement, id: string): Promise<WS | 
   if (innerWidth < 1000) dv.zoom = Math.max(0.5, Math.min(1, (innerWidth - 32) / ((doc.content.attrs?.settings?.width || 595) * 4 / 3)))
 
   let dirty = false
-  let saving = false
+  let inflight: Promise<void> | null = null
+  let queued = false
+  let closed = false
   const status = h('div', { class: 'status', role: 'status' }, h('i'), h('span', {}, 'Saved'))
   const setStatus = (t: string, cls = '') => { status.className = 'status ' + cls; (status.lastChild as HTMLElement).textContent = t }
 
-  const save = async () => {
-    if (saving) { saveSoon(); return }
-    saving = true
-    dirty = false
-    setStatus('Saving…', 'saving')
+  const snapshot = () => {
     doc.content = ed.getJSON()
     doc.meta.modified = Date.now()
     doc.assets = { ...assets.allInfo() }
+  }
+  const doSave = async () => {
+    dirty = false
+    setStatus('Saving…', 'saving')
+    snapshot()
     try {
       await store.save(doc)
       setStatus(dirty ? 'Unsaved changes' : 'Saved', dirty ? 'saving' : '')
@@ -65,7 +68,14 @@ export async function openWorkspace(app: HTMLElement, id: string): Promise<WS | 
       dirty = true
       setStatus('Couldn’t save', 'err')
       toast('Saving failed: ' + (e?.message || 'storage is unavailable') + '. Your changes are kept in this window.', 6000)
-    } finally { saving = false }
+    }
+  }
+  // One save at a time; a save asked for while one is running follows straight after it.
+  const save = (): Promise<void> => {
+    if (closed && !dirty) return inflight || Promise.resolve()
+    if (inflight) { queued = true; return inflight.then(() => { if (queued) { queued = false; return save() } }) }
+    inflight = doSave().finally(() => { inflight = null })
+    return inflight
   }
   const saveSoon = debounce(save, 700)
   const markDirty = () => { dirty = true; setStatus('Unsaved changes', 'saving'); saveSoon() }
@@ -74,8 +84,12 @@ export async function openWorkspace(app: HTMLElement, id: string): Promise<WS | 
   const nameIn = h('input', { id: 'dname', type: 'text', value: doc.meta.title, 'aria-label': 'Document title', spellcheck: 'false' }) as HTMLInputElement
   nameIn.addEventListener('change', () => { doc.meta.title = nameIn.value.trim() || 'Untitled document'; nameIn.value = doc.meta.title; onMeta() })
   nameIn.addEventListener('keydown', e => { if (e.key === 'Enter') { nameIn.blur(); ed.commands.focus() } })
-  const onMeta = () => { nameIn.value = doc.meta.title; document.title = doc.meta.title + ' · CocoaAuthor'; native?.setTitle(document.title); dv.refreshFrames(); markDirty() }
-  document.title = doc.meta.title + ' · CocoaAuthor'
+  // The title is kept as it is typed, so closing straight after typing does not lose it.
+  const titleSoon = debounce(() => { const v = nameIn.value.trim(); if (v && v !== doc.meta.title) { doc.meta.title = v; setWinTitle(); dv.refreshFrames(); markDirty() } }, 400)
+  nameIn.addEventListener('input', () => titleSoon())
+  const setWinTitle = () => { document.title = doc.meta.title + ' — CocoaAuthor'; native?.setTitle(document.title) }
+  const onMeta = () => { nameIn.value = doc.meta.title; setWinTitle(); dv.refreshFrames(); markDirty() }
+  document.title = doc.meta.title + ' — CocoaAuthor'
   native?.setTitle(document.title)
 
   const outline = outlinePanel(ed, dv)
@@ -138,7 +152,7 @@ export async function openWorkspace(app: HTMLElement, id: string): Promise<WS | 
   const toggleL = () => { if (!tabletToggle('l')) mid.classList.toggle(innerWidth < 1000 ? 'show-l' : 'no-l') }
   const toggleR = () => { if (!tabletToggle('r')) mid.classList.toggle(innerWidth < 1000 ? 'show-r' : 'no-r') }
 
-  const menus = menuBar([
+  const menuDefs: MenuDef[] = [
     { label: 'File', items: () => [
       { label: 'Document library', icon: icon('grid'), run: () => go('/') },
       { label: 'Save now', icon: icon('check'), run: async () => { await save(); toast('Saved') } },
@@ -155,15 +169,15 @@ export async function openWorkspace(app: HTMLElement, id: string): Promise<WS | 
       { label: 'Select all', run: () => ed.chain().focus().selectAll().run() },
       { label: 'Clear formatting', run: () => ed.chain().focus().unsetAllMarks().run() },
       'sep',
-      { label: 'Find…  Ctrl+F', run: () => findPanel(ed, mid, false) },
-      { label: 'Replace…  Ctrl+H', run: () => findPanel(ed, mid, true) },
+      { label: `Find…  ${MOD}F`, run: () => findPanel(ed, mid, false) },
+      { label: `Replace…  ${isMac ? '⌥⌘F' : 'Ctrl+H'}`, run: () => findPanel(ed, mid, true) },
       { label: 'Spelling…  F7', run: spelling },
       { label: settingsOf(ed).spell === false ? 'Check spelling as you type' : 'Stop checking spelling', run: () => setSettings(ed, { spell: settingsOf(ed).spell === false }) },
       { label: 'Personal dictionary…', run: editDictionary }
     ] },
     { label: 'Insert', items: insertItems },
     { label: 'Format', items: () => [
-      { label: 'Quotation marks around paragraph  Ctrl+Shift+"', run: () => toggleParaQuotes(ed) },
+      { label: `Quotation marks around paragraph  ${MOD}${isMac ? '⇧' : 'Shift+'}"`, run: () => toggleParaQuotes(ed) },
       { header: 'Paragraph style' },
       ...(['body', 'title', 'subtitle', 'h1', 'h2', 'h3', 'h4', 'caption'] as BlockStyle[]).map(k => ({ label: STYLE_LABEL[k], run: () => setBlockStyle(ed, k) })),
       ...customs(stylesOf(ed)).filter(c => c.type === 'para').map(c => ({ label: c.name, run: () => setBlockStyle(ed, c.id) })),
@@ -186,7 +200,10 @@ export async function openWorkspace(app: HTMLElement, id: string): Promise<WS | 
       'sep',
       { label: 'Show tutorial', icon: icon('info'), run: () => runOnboarding() }
     ] }
-  ])
+  ]
+  const menus = menuBar(menuDefs)
+  // Phones have no room for the menu bar: the same menus sit behind one button.
+  const moreBtn = h('button', { class: 'ic phone-only', title: 'Menu', 'aria-label': 'Menu', onclick: () => dropdown(moreBtn, menuDefs.flatMap(d => [{ header: d.label }, ...d.items()]), true) }, icon('more'))
   const showR = () => { if (tabletToggle('r', true)) return; mid.classList.remove('no-r'); if (innerWidth < 1000) mid.classList.add('show-r') }
 
   top.append(
@@ -196,7 +213,7 @@ export async function openWorkspace(app: HTMLElement, id: string): Promise<WS | 
     h('div', { class: 'zoom' }, h('button', { class: 'ic', title: 'Zoom out', onclick: () => setZoom(dv.zoom / 1.15) }, icon('zout')), zl, h('button', { class: 'ic', title: 'Zoom in', onclick: () => setZoom(dv.zoom * 1.15) }, icon('zin'))),
     h('button', { class: 'tgl-only ic', title: 'Inspector', onclick: toggleR }, icon('sliders')),
     h('button', { title: 'Preview', onclick: () => preview(doc, ed) }, icon('eye'), h('span', {}, 'Preview')),
-    exportBtn)
+    exportBtn, moreBtn)
 
   const STYLE_LABEL: Record<BlockStyle, string> = { body: 'Body text', title: 'Title', subtitle: 'Subtitle', h1: 'Heading 1', h2: 'Heading 2', h3: 'Heading 3', h4: 'Heading 4', caption: 'Caption' }
   const styleSel = h('select', { class: 'ssel', title: 'Paragraph style', 'aria-label': 'Paragraph style', onchange: () => { if (styleSel.value) setBlockStyle(ed, styleSel.value) } }) as HTMLSelectElement
@@ -230,6 +247,8 @@ export async function openWorkspace(app: HTMLElement, id: string): Promise<WS | 
     return b
   }
   const actives: [HTMLElement, () => boolean][] = []
+  const undoB = tb('undo', `Undo (${MOD}Z)`, () => ed.chain().focus().undo().run()) as HTMLButtonElement
+  const redoB = tb('redo', `Redo (${MOD}${isMac ? '⇧Z' : 'Y'})`, () => ed.chain().focus().redo().run()) as HTMLButtonElement
   const colorBtn = (name: string, title: string, key: string, def: string, palette: string[], apply: (v: string | null) => void, active: () => boolean) => {
     let cur = localStorage.getItem(key) || def
     const bar = h('span', { class: 'bar', style: { background: cur } })
@@ -247,8 +266,10 @@ export async function openWorkspace(app: HTMLElement, id: string): Promise<WS | 
       document.body.append(pop)
       pop.style.left = Math.min(r.left - 30, innerWidth - 230) + 'px'
       pop.style.top = r.bottom + 4 + 'px'
-      const off = (e: Event) => { if (!pop.contains(e.target as Node) && e.target !== more) { pop.remove(); document.removeEventListener('mousedown', off, true) } }
-      setTimeout(() => document.addEventListener('mousedown', off, true))
+      const done = () => { pop.remove(); document.removeEventListener('mousedown', off, true); document.removeEventListener('keydown', escK, true) }
+      const off = (e: Event) => { if (!pop.isConnected || (!pop.contains(e.target as Node) && e.target !== more)) done() }
+      const escK = (e: KeyboardEvent) => { if (!pop.isConnected) return done(); if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); done(); ed.commands.focus() } }
+      setTimeout(() => { document.addEventListener('mousedown', off, true); document.addEventListener('keydown', escK, true) })
     } }, icon('chev'))
     return { b: h('span', { class: 'split' }, main, more), bar }
   }
@@ -258,13 +279,13 @@ export async function openWorkspace(app: HTMLElement, id: string): Promise<WS | 
     v => (v ? ed.chain().focus().setHighlight({ color: v }).run() : ed.chain().focus().unsetHighlight().run()), () => ed.isActive('highlight'))
   const sep = () => h('span', { class: 'sep' })
   tools.append(
-    tb('undo', 'Undo', () => ed.chain().focus().undo().run()), tb('redo', 'Redo', () => ed.chain().focus().redo().run()), sep(),
+    undoB, redoB, sep(),
     styleSel, fontSel, sizeIn, sep(),
     tb('bold', 'Bold', () => ed.chain().focus().toggleBold().run(), () => ed.isActive('bold')),
     tb('italic', 'Italic', () => ed.chain().focus().toggleItalic().run(), () => ed.isActive('italic')),
     tb('underline', 'Underline', () => ed.chain().focus().toggleUnderline().run(), () => ed.isActive('underline')),
     tb('strike', 'Strikethrough', () => ed.chain().focus().toggleStrike().run(), () => ed.isActive('strike')),
-    tb('quotes', 'Quotation marks around paragraph (Ctrl+Shift+")', () => toggleParaQuotes(ed)),
+    tb('quotes', `Quotation marks around paragraph (${MOD}${isMac ? '⇧' : 'Shift+'}")`, () => toggleParaQuotes(ed)),
     tc.b, hc.b, sep(),
     tb('alignl', 'Align left', () => ed.chain().focus().setTextAlign('left').run(), () => ed.isActive({ textAlign: 'left' })),
     tb('alignc', 'Centre', () => ed.chain().focus().setTextAlign('center').run(), () => ed.isActive({ textAlign: 'center' })),
@@ -288,6 +309,8 @@ export async function openWorkspace(app: HTMLElement, id: string): Promise<WS | 
     cancelAnimationFrame(raf)
     raf = requestAnimationFrame(() => {
       for (const [b, f] of actives) b.classList.toggle('on', !!f())
+      undoB.disabled = !ed.can().undo()
+      redoB.disabled = !ed.can().redo()
       fillStyles()
       styleSel.value = currentBlockStyle(ed) || ''
       const ts = ed.getAttributes('textStyle')
@@ -317,7 +340,8 @@ export async function openWorkspace(app: HTMLElement, id: string): Promise<WS | 
     if (!href) return
     if (href.startsWith('#page=')) { const L = dv.layout; const i = L?.pages.findIndex(p => p.label === href.slice(6)) ?? -1; dv.scrollToPage(i >= 0 ? i : (parseInt(href.slice(6)) || 1) - 1) }
     else if (href.startsWith('#')) { if (!dv.scrollToId(decodeURIComponent(href.slice(1)))) toast('The link target no longer exists.') }
-    else window.open(href, '_blank', 'noopener')
+    else if (safeHref(href)) window.open(href, '_blank', 'noopener')
+    else toast('This link cannot be opened.')
   }
   insp.el.addEventListener('ca-link', () => linkDialog(ed, dv))
   insp.el.addEventListener('ca-chart', (e: any) => csvDialog(ed, e.detail))
@@ -384,28 +408,43 @@ export async function openWorkspace(app: HTMLElement, id: string): Promise<WS | 
     const mod = e.metaKey || e.ctrlKey
     if (!mod) return
     const k = keyOf(e)
+    if (k !== 's' && document.querySelector('.modal,.pv')) return
     if (k === 's') { e.preventDefault(); save().then(() => toast('Saved')) }
     else if (e.code === 'Quote' && e.shiftKey) { e.preventDefault(); toggleParaQuotes(ed) }
     else if (k === 'f' && !e.shiftKey && !e.altKey) { e.preventDefault(); findPanel(ed, mid, false) }
-    else if (k === 'h' && !e.shiftKey) { e.preventDefault(); findPanel(ed, mid, true) }
+    else if (k === 'f' && e.altKey && isMac) { e.preventDefault(); findPanel(ed, mid, true) }
+    else if (k === 'h' && !e.shiftKey && !isMac) { e.preventDefault(); findPanel(ed, mid, true) }
     else if (k === 'k') { e.preventDefault(); linkDialog(ed, dv) }
-    else if (k === 'p' && !e.shiftKey) { e.preventDefault(); preview(doc, ed) }
+    else if (k === 'p' && !e.shiftKey) { e.preventDefault(); if (!document.querySelector('.pv')) preview(doc, ed) }
     else if (k === '=' || k === '+') { e.preventDefault(); setZoom(dv.zoom * 1.15) }
     else if (k === '-') { e.preventDefault(); setZoom(dv.zoom / 1.15) }
     else if (k === '0') { e.preventDefault(); setZoom(1) }
   }
   document.addEventListener('keydown', keys)
-  const beforeUnload = (e: BeforeUnloadEvent) => { if (dirty) { saveSoon.flush(); e.preventDefault() } }
+  const beforeUnload = (e: BeforeUnloadEvent) => {
+    titleSoon.flush()
+    if (!dirty && !inflight) return
+    if (native?.saveDocSync) {
+      // Desktop: write synchronously, so closing the window never asks and never loses the last keystrokes.
+      saveSoon.cancel()
+      snapshot()
+      if (saveDocSync(doc)) { dirty = false; return }
+    }
+    if (dirty) { saveSoon.flush(); e.preventDefault(); e.returnValue = '' }
+  }
   window.addEventListener('beforeunload', beforeUnload)
-  const vis = () => { if (document.visibilityState === 'hidden' && dirty) saveSoon.flush() }
+  const vis = () => { if (document.visibilityState === 'hidden') { titleSoon.flush(); if (dirty) saveSoon.flush() } }
   document.addEventListener('visibilitychange', vis)
 
   desk.addEventListener('dragover', e => { if (e.dataTransfer?.types.includes('Files')) e.preventDefault() })
   desk.addEventListener('drop', async e => {
-    const files = Array.from(e.dataTransfer?.files || []).filter(f => f.type.startsWith('image/'))
-    if (!files.length) return
+    const all = Array.from(e.dataTransfer?.files || [])
+    if (!all.length) return
+    // Never let the browser open a dropped file in place of the app.
     e.preventDefault()
     e.stopPropagation()
+    const files = all.filter(f => f.type.startsWith('image/'))
+    if (!files.length) { toast('Only images can be dropped into a document. To open a file, go to the document library.', 4000); return }
     const pos = ed.view.posAtCoords({ left: e.clientX, top: e.clientY })
     if (pos) ed.commands.setTextSelection(pos.pos)
     for (const f of files) {
@@ -421,10 +460,15 @@ export async function openWorkspace(app: HTMLElement, id: string): Promise<WS | 
       handlePaste: (_v, ev) => {
         const files = Array.from(ev.clipboardData?.files || []).filter(f => f.type.startsWith('image/'))
         if (!files.length) return false
+        // Excel, Word and web pages put a picture of the selection next to the real content: keep the content.
+        const html = ev.clipboardData?.getData('text/html') || ''
+        if (html && richHTML(html)) return false
         ;(async () => {
-                for (const f of files) {
-            const a = await addImageAsset(doc, f, 'Pasted image')
-            ed.chain().focus().insertContent([{ type: 'image', attrs: { src: 'asset:' + a.id, w: a.w, h: a.h } }, { type: 'paragraph', attrs: { kind: 'caption', label: 'figure' } }]).run()
+          for (const f of files) {
+            try {
+              const a = await addImageAsset(doc, f, 'Pasted image')
+              ed.chain().focus().insertContent([{ type: 'image', attrs: { src: 'asset:' + a.id, w: a.w, h: a.h } }, { type: 'paragraph', attrs: { kind: 'caption', label: 'figure' } }]).run()
+            } catch (e: any) { toast(e?.message || 'That image could not be pasted.') }
           }
         })()
         return true
@@ -443,12 +487,23 @@ export async function openWorkspace(app: HTMLElement, id: string): Promise<WS | 
       window.removeEventListener('beforeunload', beforeUnload)
       document.removeEventListener('visibilitychange', vis)
       saveSoon.cancel()
+      titleSoon.flush()
+      closed = true
+      // Let a running save finish, then save what is left, before the editor goes away.
+      while (inflight) await inflight
       if (dirty) await save()
+      while (inflight) await inflight
       const keep = [...assetIds(ed.getJSON())]
-      store.pruneAssets(doc.meta.id, keep).catch(() => {})
       dv.destroy()
+      store.pruneAssets(doc.meta.id, keep).catch(() => {})
     }
   }
+}
+
+/** True when pasted HTML carries real content (text or a table), not just a picture. */
+function richHTML(html: string): boolean {
+  const d = new DOMParser().parseFromString(html, 'text/html')
+  return !!d.body.querySelector('table') || (d.body.textContent || '').trim().length > 0
 }
 
 export async function deleteDocConfirmed(id: string, title: string) {

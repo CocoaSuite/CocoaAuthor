@@ -12,17 +12,37 @@ export function toast(msg: string, ms = 2400) {
 
 export interface ModalCtl { el: HTMLElement; box: HTMLElement; close(v?: any): void; done: Promise<any> }
 
-export function modal(title: string, body: (Node | string)[], opts: { wide?: boolean; onKey?: (e: KeyboardEvent) => void } = {}): ModalCtl {
+const FOCUSABLE = 'button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),a[href],[tabindex]:not([tabindex="-1"])'
+
+export function modal(title: string, body: (Node | string)[], opts: { wide?: boolean; locked?: boolean; onKey?: (e: KeyboardEvent) => void } = {}): ModalCtl {
   let resolve!: (v: any) => void
   const done = new Promise(r => (resolve = r))
   const box = h('div', { class: 'box' + (opts.wide ? ' wide' : ''), role: 'dialog', 'aria-modal': 'true', 'aria-label': title }, h('h2', {}, title), ...body)
   const el = h('div', { class: 'modal' }, box)
-  const close = (v?: any) => { el.remove(); document.removeEventListener('keydown', key, true); resolve(v) }
+  // Focus goes back where it was (usually the page) when the window closes.
+  const back = document.activeElement as HTMLElement | null
+  let closed = false
+  const close = (v?: any) => {
+    if (closed) return
+    closed = true
+    el.remove(); document.removeEventListener('keydown', key, true); resolve(v)
+    if (back?.isConnected && !document.querySelector('.modal')) back.focus({ preventScroll: true })
+  }
   const key = (e: KeyboardEvent) => {
-    if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); close(undefined) }
+    if (!el.isConnected) { close(undefined); return }
+    if (e.key === 'Escape' && !opts.locked) { e.preventDefault(); e.stopPropagation(); close(undefined) }
+    // Tab stays inside the window.
+    if (e.key === 'Tab') {
+      const f = Array.from(box.querySelectorAll<HTMLElement>(FOCUSABLE)).filter(x => x.offsetParent !== null)
+      if (f.length) {
+        const i = f.indexOf(document.activeElement as HTMLElement)
+        if (e.shiftKey && i <= 0) { e.preventDefault(); f[f.length - 1].focus() }
+        else if (!e.shiftKey && (i === -1 || i === f.length - 1)) { e.preventDefault(); f[0].focus() }
+      }
+    }
     opts.onKey?.(e)
   }
-  el.addEventListener('mousedown', e => { if (e.target === el) close(undefined) })
+  el.addEventListener('mousedown', e => { if (e.target === el && !opts.locked) close(undefined) })
   document.addEventListener('keydown', key, true)
   document.body.append(el)
   setTimeout(() => (box.querySelector('input,select,textarea,button.pri') as HTMLElement | null)?.focus(), 20)
@@ -60,27 +80,36 @@ export function ctxMenu(x: number, y: number, raw: CtxItem[]) {
     if (it === 'sep') { m.append(h('hr')); continue }
     m.append(h('button', { role: 'menuitem', class: it.danger ? 'danger' : '', disabled: !!it.disabled, onmousedown: (e: Event) => e.preventDefault(), onclick: () => { m.remove(); it.run() } }, it.label))
   }
-  const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') { m.remove(); document.removeEventListener('keydown', esc) } }
-  document.addEventListener('keydown', esc)
   document.body.append(m)
   const r = m.getBoundingClientRect()
-  m.style.left = Math.min(x, innerWidth - r.width - 8) + 'px'
-  m.style.top = Math.min(y, innerHeight - r.height - 8) + 'px'
-  const off = (e: Event) => { if (!m.contains(e.target as Node)) { m.remove(); document.removeEventListener('mousedown', off, true) } }
-  setTimeout(() => document.addEventListener('mousedown', off, true))
+  m.style.left = Math.max(8, Math.min(x, innerWidth - r.width - 8)) + 'px'
+  m.style.top = Math.max(8, Math.min(y, innerHeight - r.height - 8)) + 'px'
+  autoClose(m)
+}
+
+/** Close a pop-up menu on Escape or a click outside it, and drop the listeners however it closes. */
+function autoClose(m: HTMLElement, anchor?: HTMLElement) {
+  const done = () => { m.remove(); document.removeEventListener('mousedown', off, true); document.removeEventListener('keydown', esc, true) }
+  const esc = (e: KeyboardEvent) => { if (!m.isConnected) return done(); if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); done() } }
+  const off = (e: Event) => { if (!m.isConnected || (!m.contains(e.target as Node) && !(anchor && anchor.contains(e.target as Node)))) done() }
+  m.addEventListener('click', e => { if ((e.target as HTMLElement).closest('button')) setTimeout(() => { if (!m.isConnected) done() }) })
+  setTimeout(() => { document.addEventListener('mousedown', off, true); document.addEventListener('keydown', esc, true) })
 }
 
 export function progressBox(title: string) {
   const bar = h('i')
   const txt = h('div', { class: 'hint' }, 'Preparing…')
-  const m = modal(title, [txt, h('div', { class: 'prog' }, bar)])
+  const m = modal(title, [txt, h('div', { class: 'prog' }, bar)], { locked: true })
   return {
     set(p: number, t?: string) { bar.style.width = Math.round(p * 100) + '%'; if (t) txt.textContent = t },
     close() { m.close() }
   }
 }
 
-export function menuBar(defs: { label: string; items: () => ({ label: string; icon?: Node; run: () => void; disabled?: boolean } | 'sep' | { header: string })[]; right?: boolean }[]): HTMLElement {
+export type MenuItem = { label: string; icon?: Node; run: () => void; disabled?: boolean } | 'sep' | { header: string }
+export type MenuDef = { label: string; items: () => MenuItem[]; right?: boolean }
+
+export function menuBar(defs: MenuDef[]): HTMLElement {
   const bar = h('div', { class: 'menus', role: 'menubar' })
   let open: HTMLElement | null = null
   const closeAll = () => { open?.classList.remove('on'); open = null }
@@ -104,24 +133,27 @@ export function menuBar(defs: { label: string; items: () => ({ label: string; ic
     mn.append(btn, dd)
     bar.append(mn)
   }
-  document.addEventListener('mousedown', e => { if (open && !open.contains(e.target as Node)) closeAll() })
-  document.addEventListener('keydown', e => { if (e.key === 'Escape') closeAll() })
+  // Document listeners go away with the bar (each screen builds its own).
+  const down = (e: Event) => { if (!bar.isConnected) return drop(); if (open && !open.contains(e.target as Node)) closeAll() }
+  const key = (e: KeyboardEvent) => { if (!bar.isConnected) return drop(); if (e.key === 'Escape') closeAll() }
+  const drop = () => { document.removeEventListener('mousedown', down); document.removeEventListener('keydown', key) }
+  document.addEventListener('mousedown', down)
+  document.addEventListener('keydown', key)
   return bar
 }
 
-export function dropdown(anchor: HTMLElement, items: ({ label: string; icon?: Node; run: () => void } | 'sep' | { header: string })[], right = false) {
+export function dropdown(anchor: HTMLElement, items: MenuItem[], right = false) {
   const r = anchor.getBoundingClientRect()
   document.querySelectorAll('.ctx').forEach(e => e.remove())
   const m = h('div', { class: 'ctx', role: 'menu' })
   for (const it of items) {
     if (it === 'sep') m.append(h('hr'))
     else if ('header' in it) m.append(h('div', { class: 'lbl', style: 'font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--mute);padding:6px 10px 2px' }, it.header))
-    else m.append(h('button', { role: 'menuitem', onclick: () => { m.remove(); it.run() } }, it.icon || '', it.label))
+    else m.append(h('button', { role: 'menuitem', disabled: !!it.disabled, onclick: () => { m.remove(); it.run() } }, it.icon || '', it.label))
   }
   document.body.append(m)
   const mr = m.getBoundingClientRect()
-  m.style.top = Math.min(r.bottom + 4, innerHeight - mr.height - 8) + 'px'
-  m.style.left = (right ? Math.max(8, r.right - mr.width) : Math.min(r.left, innerWidth - mr.width - 8)) + 'px'
-  const off = (e: Event) => { if (!m.contains(e.target as Node) && e.target !== anchor) { m.remove(); document.removeEventListener('mousedown', off, true) } }
-  setTimeout(() => document.addEventListener('mousedown', off, true))
+  m.style.top = Math.max(8, Math.min(r.bottom + 4, innerHeight - mr.height - 8)) + 'px'
+  m.style.left = (right ? Math.max(8, r.right - mr.width) : Math.max(8, Math.min(r.left, innerWidth - mr.width - 8))) + 'px'
+  autoClose(m, anchor)
 }

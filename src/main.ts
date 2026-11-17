@@ -15,8 +15,15 @@ const app = document.getElementById('app')!
 let ws: WS | null = null
 let busy = Promise.resolve()
 
+let shown = location.hash
 const show = () => {
   busy = busy.then(async () => {
+    if (ws?.canLeave && location.hash !== shown && !(await ws.canLeave())) {
+      // Stay: put the address back without another route change.
+      history.pushState(null, '', shown || '#/')
+      return
+    }
+    shown = location.hash
     const r = route()
     document.querySelectorAll('.ctx,.modal').forEach(e => e.remove())
     if (ws) { const w = ws; ws = null; await w.dispose() }
@@ -43,13 +50,14 @@ let overlay: HTMLElement | null = null
 window.addEventListener('dragenter', e => {
   if (!e.dataTransfer?.types.includes('Files') || route().name !== 'library') return
   dragN++
-  if (!overlay) { overlay = h('div', { class: 'drop' }, 'Drop a PDF, .cocoaauthor, Word or Markdown file to open it'); document.body.append(overlay) }
+  if (!overlay) { overlay = h('div', { class: 'drop' }, 'Drop a PDF, .cocoaauthor, Word, Markdown or .zip file to open it'); document.body.append(overlay) }
 })
 window.addEventListener('dragleave', () => { if (--dragN <= 0) { dragN = 0; overlay?.remove(); overlay = null } })
 window.addEventListener('dragover', e => { if (e.dataTransfer?.types.includes('Files')) e.preventDefault() })
 window.addEventListener('drop', async e => {
   dragN = 0; overlay?.remove(); overlay = null
-  if (route().name !== 'library') return
+  // Outside the library a dropped file must never replace the app in this window.
+  if (route().name !== 'library') { if (e.dataTransfer?.types.includes('Files')) e.preventDefault(); return }
   const all = Array.from(e.dataTransfer?.files || [])
   if (!all.some(x => /\.(cocoaauthor|docx|md|markdown|zip|pdf)$/i.test(x.name))) return
   e.preventDefault()

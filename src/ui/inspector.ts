@@ -363,7 +363,7 @@ export function inspectorPanel(ed: Editor, dv: DocView, doc: CADocument, onMeta:
     const ts = allTargets(ed)
     const tg = ts.find(t => t.id === n.attrs.target)
     body.append(sec('Cross-reference'))
-    body.append(fr('Target', sel([...(tg ? [] : [['', 'Missing target'] as Opt]), ...ts.map(t => [t.id, `${kindName(t.kind)} · ${t.num ? t.num + ' ' : ''}${t.text}`.slice(0, 60)] as Opt)], tg ? tg.id : '', v => v && set('target', v))))
+    body.append(fr('Target', sel([...(tg ? [] : [['', 'Missing target'] as Opt]), ...ts.map(t => [t.id, `${kindName(t.kind)}: ${t.num ? t.num + ' ' : ''}${t.text}`.slice(0, 60)] as Opt)], tg ? tg.id : '', v => v && set('target', v))))
     body.append(fr('Show', sel([['text', 'Text'], ['number', 'Number'], ['page', 'Page number'], ['textpage', 'Text and page']], n.attrs.show, v => set('show', v))))
     body.append(h('div', { class: 'hint' }, 'Reads as: ' + xrefText(tg, n.attrs.show, dv.layout?.idPage[n.attrs.target]).text))
     body.append(h('div', { class: 'fr' },

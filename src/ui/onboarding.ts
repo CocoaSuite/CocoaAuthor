@@ -3,6 +3,7 @@
 import '../styles/onboard.css'
 import helloSound from './assets/hello.mp3?inline'
 import { store } from '../storage/store'
+import { MOD, isMac } from '../util'
 
 const KEY = 'ca-onb'
 const get = (k: string) => { try { return localStorage.getItem(k) } catch { return null } }
@@ -30,19 +31,19 @@ const ILL: Record<string, string> = {
 type Step = [string, string, string]
 const S: Record<'phone' | 'tablet' | 'desk', Step[]> = {
   phone: [
-    ['write', 'Just start writing', 'Tap the page and type. Pick a style like Heading or Quote in the bar at the top.'],
+    ['write', 'Just start writing', 'Tap the page and type. Pick a style like Heading or Caption in the bar at the top.'],
     ['panels', 'Outline and Inspector', 'The buttons at the top open the Outline of your sections and the Inspector for styles and page setup.'],
     ['pinch', 'Pinch to zoom', 'Use two fingers on the page to zoom in and out.'],
     ['down', 'Swipe down to close', 'Every menu, popup and window closes with a quick swipe down.'],
     ['share', 'Publish anywhere', 'Export makes a PDF or Word file. Choose Save to Files or send it straight from the share sheet.']],
   tablet: [
-    ['write', 'Just start writing', 'Tap the page and type. A keyboard works too: Ctrl+B, Ctrl+I, Ctrl+F and the rest.'],
+    ['write', 'Just start writing', `Tap the page and type. A keyboard works too: ${MOD}B, ${MOD}I, ${MOD}F and the rest.`],
     ['swipe', 'Swipe the side panels', 'Swipe Outline or Inspector toward the edge to hide it. Swipe in from the edge to bring it back.'],
     ['pinch', 'Pinch to zoom', 'Use two fingers on the page to zoom in and out.'],
     ['down', 'Swipe down to close', 'Every menu, popup and window closes with a quick swipe down.'],
     ['share', 'Publish anywhere', 'Export makes a PDF or Word file. Choose Save to Files or send it straight from the share sheet.']],
   desk: [
-    ['keys', 'Shortcuts at your fingertips', 'Ctrl+B and Ctrl+I for bold and italic, Ctrl+F to find, Ctrl+H to replace and F7 for spelling.'],
+    ['keys', 'Shortcuts at your fingertips', `${MOD}B and ${MOD}I for bold and italic, ${MOD}F to find, ${isMac ? '⌥⌘F' : 'Ctrl+H'} to replace and F7 for spelling.`],
     ['outline', 'Steer with the Outline', 'The Outline on the left jumps to any section. Drag a heading to move the whole section with it.'],
     ['write', 'Styles do the formatting', 'Pick Title, Heading or Quote and the Inspector on the right keeps every page consistent.'],
     ['share', 'Preview, then publish', 'Preview shows exactly what the PDF will contain. Export saves PDF, Word or a CocoaAuthor file.']]

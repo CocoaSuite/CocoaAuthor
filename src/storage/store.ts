@@ -18,6 +18,7 @@ export interface Native {
   listDocs(): Promise<DocSummary[]>
   loadDoc(id: string): Promise<string | null>
   saveDoc(id: string, json: string, summary: string): Promise<void>
+  saveDocSync?(id: string, json: string, summary: string): boolean
   deleteDoc(id: string): Promise<void>
   putAsset(docId: string, id: string, data: ArrayBuffer): Promise<void>
   getAsset(docId: string, id: string): Promise<ArrayBuffer | null>
@@ -124,6 +125,12 @@ class NativeStore implements Store {
 export const store: Store = native ? new NativeStore(native) : new IdbStore()
 
 export const FILE_EXT = 'cocoaauthor'
+
+/** Desktop only: write the document before the window closes. False when that is not possible. */
+export function saveDocSync(doc: CADocument): boolean {
+  if (!native?.saveDocSync) return false
+  try { return native.saveDocSync(doc.meta.id, JSON.stringify(doc), JSON.stringify(summarize(doc))) === true } catch { return false }
+}
 
 export async function packDoc(doc: CADocument): Promise<Uint8Array> {
   const files: Record<string, Uint8Array> = { 'document.json': strToU8(JSON.stringify(doc)) }

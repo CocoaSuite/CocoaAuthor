@@ -1,5 +1,5 @@
 import type { Editor } from '@tiptap/core'
-import { h, esc } from '../util'
+import { h, safeHref } from '../util'
 import { modal, toast, progressBox } from './dialogs'
 import { icon } from './icons'
 import { allTargets, countHints, brokenRefs, clearHints, settingsOf } from './commands'
@@ -70,6 +70,7 @@ export function linkDialog(ed: Editor, dv: DocView) {
     else if (mode === 'page') href = v ? '#page=' + parseInt(v) : ''
     else href = target ? '#' + target : ''
     if (!href) { toast('Choose where the link should go.'); return }
+    if (!safeHref(href)) { toast('Only web, email and phone links can be used.'); return }
     const text = textIn.value
     if (empty && !ed.isActive('link')) {
       const t = text || (mode === 'doc' ? ts.find(x => x.id === target)?.text || 'link' : v)
@@ -242,7 +243,7 @@ export async function preview(doc: CADocument, ed: Editor | null) {
   const el = h('div', { class: 'pv', role: 'dialog', 'aria-label': 'Preview' },
     h('div', { class: 'pvbar' },
       h('button', { class: 'ic', title: 'Close preview', onclick: close }, icon('x')),
-      h('b', {}, 'Preview'), h('span', { class: 'mute' }, esc(doc.meta.title)),
+      h('b', {}, 'Preview'), h('span', { class: 'mute' }, doc.meta.title),
       h('span', { class: 'sp' }), pg,
       h('div', { class: 'zoom' }, h('button', { class: 'ic', title: 'Zoom out', onclick: () => setZoom(zoom / 1.2) }, icon('zout')), zl, h('button', { class: 'ic', title: 'Zoom in', onclick: () => setZoom(zoom * 1.2) }, icon('zin'))),
       h('button', { onclick: () => exportPDF(doc, null) }, icon('pdf'), 'Export PDF')),
@@ -280,7 +281,8 @@ export async function preview(doc: CADocument, ed: Editor | null) {
     const y = (desk.scrollTop - 28 + desk.clientHeight * 0.3) / s()
     let i = 0
     for (const p of L.pages) if (p.top <= y) i = p.i
-    pg.textContent = `Page ${L.pages[i]?.label ?? 1} · ${i + 1} of ${L.pages.length}`
+    const label = String(L.pages[i]?.label ?? i + 1)
+    pg.textContent = label === String(i + 1) ? `Page ${i + 1} of ${L.pages.length}` : `Page ${label} (${i + 1} of ${L.pages.length})`
   }
   desk.addEventListener('scroll', upd)
   desk.addEventListener('wheel', e => {
@@ -301,7 +303,7 @@ export async function preview(doc: CADocument, ed: Editor | null) {
     else if (href.startsWith('#')) {
       const t = root.querySelector<HTMLElement>(`[id="${CSS.escape(href.slice(1))}"]`)
       if (t) go((t.getBoundingClientRect().top - root.getBoundingClientRect().top) / s())
-    } else if (href) window.open(href, '_blank', 'noopener')
+    } else if (href && safeHref(href)) window.open(href, '_blank', 'noopener')
   })
 }
 

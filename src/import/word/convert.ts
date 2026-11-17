@@ -5,6 +5,7 @@
 import { getSchema } from '@tiptap/core'
 import { extensions } from '../../editor/extensions'
 import { newDoc } from '../../model/doc'
+import { store } from '../../storage/store'
 import { addImageAsset } from '../../ui/commands'
 import { uid } from '../../util'
 import {
@@ -83,7 +84,11 @@ class Builder {
 
 export async function convertDocx(data: Uint8Array, fileName: string): Promise<CADocument> {
   const c = new Converter(data, fileName)
-  return c.run()
+  try { return await c.run() } catch (e) {
+    // Pictures already stored for this attempt would otherwise stay behind with no document.
+    await store.remove(c.doc.meta.id).catch(() => {})
+    throw e
+  }
 }
 
 class Converter {
